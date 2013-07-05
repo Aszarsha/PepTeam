@@ -13,23 +13,6 @@
 
 #include "Fasta.hpp"
 
-// ~~~ Node Based Tree ~~~ //
-struct Node {
-		static size_t nbNodes;
-		Node() {   ++nbNodes;   }
-
-		std::map< char, void * > children;
-};
-
-struct Leaf {
-		static size_t nbLeaves;
-		Leaf() {   ++nbLeaves;   }
-
-		std::map< uint32_t, std::vector< size_t > > positions;
-};
-
-Leaf * GetLeafCreatePath( void * root, char const * seq, size_t s );
-
 // ~~~ Vector Based Tree ~~~ //
 #define NB_BITS_FOR_LINK 27U
 //#define BITS_FOR_LINK_MASK ((-1U)>>(32-NB_BITS_FOR_LINK))
@@ -218,7 +201,58 @@ inline uint32_t ForLeafPos( LinearizedTreeData const & tree, uint32_t index, F &
 		return (uint32_t)(data - base);
 }
 
-// ~~~ Convertions ~~~ //
-LinearizedTree LinearizeTree( void * root, uint32_t treeDepth );
+// ~~~ Node Based Tree ~~~ //
+struct Trie {
+	public:
+		struct Node {
+				std::map< char, size_t > children;
+		};
+
+		struct Leaf {
+				std::map< uint32_t, std::vector< size_t > > positions;
+		};
+
+	public:
+		explicit Trie( size_t treeDepth )
+			: depth( treeDepth ) {
+				AllocateNode();   // root
+		}
+
+	public:
+		Node       * GetNode( size_t i )       {   return &nodes[i];   }
+		Node const * GetNode( size_t i ) const {   return &nodes[i];   }
+
+		Leaf       * GetLeaf( size_t i )       {   return &leaves[i];   }
+		Leaf const * GetLeaf( size_t i ) const {   return &leaves[i];   }
+
+		Node       * Root()       {   return GetNode( 0 );   }
+		Node const * Root() const {   return GetNode( 0 );   }
+
+		size_t Depth() const {   return depth;   }
+
+		size_t NumNodes() const  {   return nodes .size();    }
+		size_t NumLeaves() const {   return leaves.size();    }
+
+		size_t GetLeafCreatePath( char const * seq );
+
+		LinearizedTree LinearizeTree() const;
+
+	private:
+		size_t depth;
+
+		std::vector< Node > nodes;
+		std::vector< Leaf > leaves;
+
+	private:
+		size_t AllocateNode() {
+				nodes.emplace_back();
+				return nodes.size()-1;
+		}
+
+		size_t AllocateLeaf() {
+				leaves.emplace_back();
+				return leaves.size()-1;
+		}
+};
 
 #endif

@@ -44,10 +44,11 @@ void PepTreeCreation( char * argv[] ) {
 		fclose( inputFile );
 
 		printf( "Creating PepTree of depth %zu from \"%s\"...\n", fragSize, argv[ 2 ] );
-		auto treeRoot = new Node;
 		auto const & indices   = GetProtIdxIndices( idx );
 		auto const & names     = GetProtIdxNames( idx );
 		auto const & sequences = GetProtIdxSequences( idx );
+
+		Trie trie( fragSize );
 
 		auto proteinIndex  = size_t{ 0 };
 		auto fragmentStart = size_t{ 0 }, sequenceStart = size_t{ 0 };
@@ -67,7 +68,6 @@ void PepTreeCreation( char * argv[] ) {
 								       );
 								switch ( sequences[ i ] ) {
 									case 'U': {   fprintf( stderr, "selenocysteine (U)\n" );                       } break;
-									case '*': {   fprintf( stderr, "translation stop (*)\n" );                     } break;
 									case '-': {   fprintf( stderr, "gap of indeterminate length (-)\n" );          } break;
 									default:  {   fprintf( stderr, "invalid character (%c)\n", sequences[ i ] );   } break;
 								}
@@ -79,8 +79,8 @@ void PepTreeCreation( char * argv[] ) {
 						}
 				}
 				if ( i - fragmentStart == fragSize-1 ) {
-						auto leaf = GetLeafCreatePath( treeRoot, sequences.data() + fragmentStart, fragSize );
-						leaf->positions[ proteinIndex ].push_back( i - sequenceStart );
+						auto leafIndex = trie.GetLeafCreatePath( sequences.data() + fragmentStart );
+						trie.GetLeaf( leafIndex )->positions[ proteinIndex ].push_back( i - sequenceStart );
 
 						++fragmentStart;
 				}
@@ -91,16 +91,16 @@ void PepTreeCreation( char * argv[] ) {
 				printf( "Linearizing tree structure...\n" );
 				auto startTimer = chrono::high_resolution_clock::now();
 
-				auto tree = LinearizeTree( treeRoot, fragSize );
+				auto tree = trie.LinearizeTree();
 
 				auto finishTimer = chrono::high_resolution_clock::now();
 				auto elapsed2 = finishTimer - startTimer;
-				auto nbNodes = Leaf::nbLeaves + Node::nbNodes;
+				auto nbNodes = trie.NumLeaves() + trie.NumNodes();
 				printf( "   ...linearized in %ld seconds (%zu node%s: %zu internal%s, %zu lea%s).\n"
 				      , chrono::duration_cast< chrono::seconds >( elapsed2 ).count()
 				      , nbNodes, nbNodes > 1 ? "s" : ""
-				      , Node::nbNodes, Node::nbNodes > 1 ? "s" : ""
-				      , Leaf::nbLeaves, Leaf::nbLeaves > 1 ? "ves" : "f"
+				      , trie.NumNodes(), trie.NumNodes() > 1 ? "s" : ""
+				      , trie.NumLeaves(), trie.NumLeaves() > 1 ? "ves" : "f"
 				      );
 
 				ostringstream outputPepTreeFilenameStream;

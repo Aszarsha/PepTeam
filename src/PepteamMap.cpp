@@ -75,7 +75,6 @@ namespace {
 			uint32_t curProt;
 			prot2pep_map & m;
 
-
 			MappingResolvingFunctor( string const & q, string const & s, double sco, prot2pep_map & mm )
 				: score( sco )
 				, query( q )
