@@ -35,36 +35,31 @@ void UsageError( char * argv[] ) {
 
 void PepTreeCreation( char * argv[] ) {
 		auto fragSize = static_cast< size_t >( atoi( argv[ 3 ] ) );
-		auto inputFile = fopen( argv[2], "rb" );
-		if ( !inputFile ) {
-				fprintf( stderr, "Unable to open input FastIdx file \"%s\"\n", argv[ 1 ] );
-				exit( 1 );
-		}
-		auto idx = ReadProteinIndex( inputFile );
-		fclose( inputFile );
+		MMappedFastIdx idx( argv[2] );
 
 		printf( "Creating PepTree of depth %zu from \"%s\"...\n", fragSize, argv[ 2 ] );
-		auto const & indices   = GetProtIdxIndices( idx );
-		auto const & names     = GetProtIdxNames( idx );
-		auto const & sequences = GetProtIdxSequences( idx );
+		auto indices   = idx.GetIndices();
+		auto names     = idx.GetNames();
+		auto sequences = idx.GetSequences();
+		auto seqSize   = idx.GetSequencesSize();
 
 		Trie trie( fragSize );
 
 		auto proteinIndex  = size_t{ 0 };
 		auto fragmentStart = size_t{ 0 }, sequenceStart = size_t{ 0 };
-		for ( size_t i = 0, e = sequences.size(); i < e; ++i ) {
+		for ( size_t i = 0; i < seqSize; ++i ) {
 				while ( !Fasta::IsValidAA( sequences[ i ] ) ) {   // require a loop to detect multiple successive invalid chars
 						if ( sequences[ i ] == '\0' ) {
 								++proteinIndex;
 								sequenceStart = i+1;
 						} else {
-								auto startStr = sequences.data() + (i < fragSize ? 0 : i-fragSize+1);
+								auto startStr = sequences + (i < fragSize ? 0 : i-fragSize+1);
 								fprintf( stderr
 								       , "      warning: ignoring fragments "
 								         "in %s (centered at position %zu) "
 								         "in \"%s\" [%zu]: fragments contain "
 								       , string( startStr, startStr + 2*fragSize-1 ).c_str()
-								       , i - sequenceStart, names.data() + indices[ proteinIndex*2 ], proteinIndex
+								       , i - sequenceStart, names + indices[ proteinIndex*2 ], proteinIndex
 								       );
 								switch ( sequences[ i ] ) {
 									case 'U': {   fprintf( stderr, "selenocysteine (U)\n" );                       } break;
@@ -74,12 +69,12 @@ void PepTreeCreation( char * argv[] ) {
 						}
 
 						i = fragmentStart = i+1;
-						if ( i >= e ) {   // last character was invalid
+						if ( i >= seqSize ) {   // last character was invalid
 								goto End_Outer_Loop;
 						}
 				}
 				if ( i - fragmentStart == fragSize-1 ) {
-						auto leafIndex = trie.GetLeafCreatePath( sequences.data() + fragmentStart );
+						auto leafIndex = trie.GetLeafCreatePath( sequences + fragmentStart );
 						trie.GetLeaf( leafIndex )->positions[ proteinIndex ].push_back( i - sequenceStart );
 
 						++fragmentStart;

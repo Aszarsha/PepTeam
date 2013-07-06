@@ -290,7 +290,7 @@ void WriteReadableLinearizedLeafPos( FILE * file, LinearizedTreeData const & td 
 		uint32_t index = 0;
 		size_t nodeNumber = 0;
 		while ( index < GetTreeLeafPosSize( td ) ) {
-				fprintf( file, "(%05zu) %06tX:", nodeNumber++, index );
+				fprintf( file, "(%05zu) %06X:", nodeNumber++, index );
 				index += ForLeafPos( td, index, ReadablePrinterFunctor{ file } );
 				fprintf( file, "\n" );
 		}

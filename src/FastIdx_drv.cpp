@@ -113,7 +113,8 @@ void IndexCreation( char * argv[] ) {
 						fprintf( stderr, "Unable to open output file \"%s\"\n", outputProtIdxFilenameStream.str().c_str() );
 						exit( 1 );
 				}
-				WriteLinearizedProtIdx( outputProtIdxFile, LinearizeProtIdx( proteinsName, proteinsSeq ) );
+				MemFastIdx idx( proteinsName, proteinsSeq );
+				idx.Write( outputProtIdxFile );
 				fclose( outputProtIdxFile );
 
 				finishTimer = chrono::high_resolution_clock::now();
@@ -128,36 +129,34 @@ void IndexCreation( char * argv[] ) {
 }
 
 void IndexSizePrinting( char * argv[] ) {
-		auto inputFile = OpenInputFile( argv[ 2 ] );
-		printf( "Number of proteins in index: %zu\n", ReadProteinIndexSize( inputFile ) );
-		fclose( inputFile );
+		MMappedFastIdx idx( argv[ 2 ] );
+		printf( "Number of proteins in index: %zu\n", idx.Size() );
 }
 
 void IndexPrinting( char * argv[] ) {
-		auto inputFile = OpenInputFile( argv[ 2 ] );
-		auto idx = ReadProteinIndex( inputFile );
-		fclose( inputFile );
+		MMappedFastIdx idx( argv[ 2 ] );
 
-		auto const & indices   = GetProtIdxIndices  ( idx );
-		auto const & names     = GetProtIdxNames    ( idx );
-		auto const & sequences = GetProtIdxSequences( idx );
+		auto size      = idx.Size();
+		auto indices   = idx.GetIndices();
+		auto names     = idx.GetNames();
+		auto sequences = idx.GetSequences();
 
 		auto nodeNumber = size_t{ 0 };
-		for ( size_t i = 0, e = indices.size(); i < e; i += 2 ) {
+		for ( size_t i = 0; i < 2*size; i += 2 ) {
 				printf( "(%05zu) %06zX: %06X | %06X\n", nodeNumber++, i, indices[ i ], indices[ i+1 ] );
 		}
 
 		printf( "~~~~~~\n" );
 
 		nodeNumber = 0;
-		for ( size_t i = 0, e = indices.size(); i < e; i += 2 ) {
+		for ( size_t i = 0; i < 2*size; i += 2 ) {
 				printf( "(%05zu) %06X: %s\n", nodeNumber++, indices[ i ], &names[ indices[ i ] ] );
 		}
 
 		printf( "~~~~~~\n" );
 
 		nodeNumber = 0;
-		for ( size_t i = 1, e = indices.size(); i < e; i += 2 ) {
+		for ( size_t i = 1; i < 2*size; i += 2 ) {
 				printf( "(%05zu) %06X: %s\n", nodeNumber++, indices[ i ], &sequences[ indices[ i ] ] );
 		}
 }

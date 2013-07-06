@@ -16,7 +16,7 @@
 // ~~~ Vector Based Tree ~~~ //
 #define NB_BITS_FOR_LINK 27U
 //#define BITS_FOR_LINK_MASK ((-1U)>>(32-NB_BITS_FOR_LINK))
-#define BITS_FOR_LINK_MASK ((1<<(NB_BITS_FOR_LINK))-1)
+#define BITS_FOR_LINK_MASK ((unsigned)(1<<(NB_BITS_FOR_LINK))-1)
 #define BITS_FOR_CHAR_MASK ~BITS_FOR_LINK_MASK
 
 typedef unsigned char Byte;

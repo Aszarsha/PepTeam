@@ -7,17 +7,22 @@
 #include <limits>
 #include <stdexcept>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
+
 #include "FastIdx.hpp"
 
 using namespace std;
 
-LinearizedProtIdx LinearizeProtIdx( vector< string > const & proteinsName
-                                  , vector< string > const & proteinsSeq
-                                  ) {
-		LinearizedProtIdx idx;
-		auto & indices   = GetProtIdxIndices( idx );
-		auto & names     = GetProtIdxNames( idx );
-		auto & sequences = GetProtIdxSequences( idx );
+MemFastIdx::MemFastIdx( vector< string > const & proteinsName
+                      , vector< string > const & proteinsSeq
+                      ) {
+		auto & indices   = GetIndices();
+		auto & names     = GetNames();
+		auto & sequences = GetSequences();
 
 		auto ConcatInVector = []( vector< char > & vec, string const & seq ) -> size_t {
 				auto curIndex = vec.size();
@@ -38,16 +43,14 @@ LinearizedProtIdx LinearizeProtIdx( vector< string > const & proteinsName
 				}
 				indices.push_back( static_cast< uint32_t >(  seqPos ) );
 		}
-
-		return idx;
 }
 
 static auto const indicesOffset = static_cast< uint32_t >( 2 * sizeof( uint32_t ) );
 
-void WriteLinearizedProtIdx( FILE * file, LinearizedProtIdx const & idx ) {
-		auto const & indices   = GetProtIdxIndices( idx );
-		auto const & names     = GetProtIdxNames( idx );
-		auto const & sequences = GetProtIdxSequences( idx );
+void MemFastIdx::Write( FILE * file ) const {
+		auto const & indices   = GetIndices();
+		auto const & names     = GetNames();
+		auto const & sequences = GetSequences();
 
 		auto snOffset  = static_cast< uint32_t >( indicesOffset + indices.size() * sizeof( indices.front() ) );
 		auto seqOffset = static_cast< uint32_t >( snOffset      + names.size()   * sizeof( names.front() ) );
@@ -59,29 +62,47 @@ void WriteLinearizedProtIdx( FILE * file, LinearizedProtIdx const & idx ) {
 		fwrite( sequences.data(), sizeof( sequences.front() ), sequences.size(), file );
 }
 
-size_t ReadProteinIndexSize( FILE * file ) {
-		uint32_t arr[2];
-		fread( arr, sizeof( arr[0] ), sizeof( arr ) / sizeof( arr[0] ), file );
-
-		return (arr[0] - indicesOffset)/(2 * sizeof( uint32_t ));
+MMappedFastIdx::MMappedFastIdx( const char * filename )
+	: fd( open( filename, O_RDONLY ) ) {
+		if ( !fd ) {
+				throw std::runtime_error{ "Unable to open input FastIdx file\n" };
+		}
+		struct stat fStat;
+		fstat( fd, &fStat );
+		fileSize = static_cast< uint32_t >( fStat.st_size );
+		ptr = static_cast< char const * >( mmap( nullptr, fileSize, PROT_READ, MAP_SHARED, fd, 0 ) );
 }
 
-LinearizedProtIdx ReadProteinIndex( FILE * file ) {
-		fseek( file, 0, SEEK_END );
-		auto fileSize = ftell( file );
-		fseek( file, 0, SEEK_SET );
+MMappedFastIdx::~MMappedFastIdx() {
+		close( fd );
+}
 
-		uint32_t arr[2];
-		fread( arr, sizeof( arr[0] ), sizeof( arr ) / sizeof( arr[0] ), file );
 
-		auto indices = vector< uint32_t >( (arr[0] - indicesOffset)/sizeof( uint32_t ) );
-		fread( indices.data(), sizeof( indices.front() ), indices.size(), file );
+size_t MMappedFastIdx::Size() const {
+		return GetIndicesSize()/2;
+}
 
-		auto names = vector< char >( arr[1] - arr[0] );
-		fread( names.data(), sizeof( names.front() ), names.size(), file );
+size_t MMappedFastIdx::GetIndicesSize() const {
+		return (reinterpret_cast< uint32_t const * >( ptr )[0] - indicesOffset)/sizeof( uint32_t );
+}
 
-		auto sequences = vector< char >( fileSize - arr[1] );
-		fread( sequences.data(), sizeof( sequences.front() ), sequences.size(), file );
+size_t MMappedFastIdx::GetNamesSize() const {
+		uint32_t const * tmp = reinterpret_cast< uint32_t const * >( ptr );
+		return tmp[1] - tmp[0];
+}
 
-		return LinearizedProtIdx{ indices, names, sequences };
+size_t MMappedFastIdx::GetSequencesSize() const {
+		return fileSize - reinterpret_cast< uint32_t const * >( ptr )[1];
+}
+
+uint32_t const * MMappedFastIdx::GetIndices() const {
+		return reinterpret_cast< uint32_t const * >( ptr + indicesOffset );
+}
+
+char const * MMappedFastIdx::GetNames() const {
+		return ptr + reinterpret_cast< uint32_t const * >( ptr )[0];
+}
+
+char const * MMappedFastIdx::GetSequences() const {
+		return ptr + reinterpret_cast< uint32_t const * >( ptr )[1];
 }
