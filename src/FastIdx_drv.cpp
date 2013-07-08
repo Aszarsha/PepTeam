@@ -136,27 +136,27 @@ void IndexSizePrinting( char * argv[] ) {
 void IndexPrinting( char * argv[] ) {
 		MMappedFastIdx idx( argv[ 2 ] );
 
-		auto size      = idx.Size();
-		auto indices   = idx.GetIndices();
-		auto names     = idx.GetNames();
-		auto sequences = idx.GetSequences();
+		auto size      = idx.GetIndicesSize();
+		auto indices   = idx.GetIndicesData();
+		auto names     = idx.GetNamesData();
+		auto sequences = idx.GetSequencesData();
 
 		auto nodeNumber = size_t{ 0 };
-		for ( size_t i = 0; i < 2*size; i += 2 ) {
+		for ( size_t i = 0; i < size; i += 2 ) {
 				printf( "(%05zu) %06zX: %06X | %06X\n", nodeNumber++, i, indices[ i ], indices[ i+1 ] );
 		}
 
 		printf( "~~~~~~\n" );
 
 		nodeNumber = 0;
-		for ( size_t i = 0; i < 2*size; i += 2 ) {
+		for ( size_t i = 0; i < size; i += 2 ) {
 				printf( "(%05zu) %06X: %s\n", nodeNumber++, indices[ i ], &names[ indices[ i ] ] );
 		}
 
 		printf( "~~~~~~\n" );
 
 		nodeNumber = 0;
-		for ( size_t i = 1; i < 2*size; i += 2 ) {
+		for ( size_t i = 1; i < size; i += 2 ) {
 				printf( "(%05zu) %06X: %s\n", nodeNumber++, indices[ i ], &sequences[ indices[ i ] ] );
 		}
 }

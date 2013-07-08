@@ -22,66 +22,15 @@
 typedef unsigned char Byte;
 typedef uint32_t      EncodedNodeType;
 typedef Byte          LeafBaseDataType;
-typedef std::pair< EncodedNodeType  const *, size_t > NodesVector;
-typedef std::pair< LeafBaseDataType const *, size_t > LeavesVector;
-typedef std::pair< LeafBaseDataType const *, size_t > LeafPosVector;
-typedef std::tuple< uint32_t
-                  , std::vector< EncodedNodeType >
-                  , std::vector< LeafBaseDataType >
-                  , std::vector< LeafBaseDataType >
-                  > LinearizedTree;
-typedef std::tuple< uint32_t
-                  , NodesVector
-                  , LeavesVector
-                  , LeafPosVector
-                  > LinearizedTreeData;
 
-template< typename V > inline auto GetVectorData( V const & v ) -> decltype( std::get< 0 >( v ) ) {   return std::get< 0 >( v );   }
-template< typename V > inline auto GetVectorSize( V const & v ) -> decltype( std::get< 1 >( v ) ) {   return std::get< 1 >( v );   }
-
-inline uint32_t                                GetTreeDepth(   LinearizedTree const     & t ) {   return std::get< 0 >( t );   }
-inline uint32_t                                GetTreeDepth(   LinearizedTreeData const & t ) {   return std::get< 0 >( t );   }
-inline std::vector< EncodedNodeType > const  & GetTreeNodes(   LinearizedTree const     & t ) {   return std::get< 1 >( t );   }
-inline NodesVector const                     & GetTreeNodes(   LinearizedTreeData const & t ) {   return std::get< 1 >( t );   }
-inline std::vector< LeafBaseDataType > const & GetTreeLeaves(  LinearizedTree const     & t ) {   return std::get< 2 >( t );   }
-inline LeavesVector const                    & GetTreeLeaves(  LinearizedTreeData const & t ) {   return std::get< 2 >( t );   }
-inline std::vector< LeafBaseDataType > const & GetTreeLeafPos( LinearizedTree const     & t ) {   return std::get< 3 >( t );   }
-inline LeafPosVector const                   & GetTreeLeafPos( LinearizedTreeData const & t ) {   return std::get< 3 >( t );   }
-
-inline EncodedNodeType const * GetTreeNodesData( LinearizedTree const     & t ) {   return GetTreeNodes( t ).data();             }
-inline EncodedNodeType const * GetTreeNodesData( LinearizedTreeData const & t ) {   return GetVectorData( GetTreeNodes( t ) );   }
-inline size_t GetTreeNodesSize( LinearizedTree const     & t ) {   return GetTreeNodes( t ).size();             }
-inline size_t GetTreeNodesSize( LinearizedTreeData const & t ) {   return GetVectorSize( GetTreeNodes( t ) );   }
-
-inline LeafBaseDataType const * GetTreeLeavesData( LinearizedTree const     & t ) {   return GetTreeLeaves( t ).data();             }
-inline LeafBaseDataType const * GetTreeLeavesData( LinearizedTreeData const & t ) {   return GetVectorData( GetTreeLeaves( t ) );   }
-inline size_t GetTreeLeavesSize( LinearizedTree const     & t ) {   return GetTreeLeaves( t ).size();             }
-inline size_t GetTreeLeavesSize( LinearizedTreeData const & t ) {   return GetVectorSize( GetTreeLeaves( t ) );   }
-
-inline LeafBaseDataType const * GetTreeLeafPosData( LinearizedTree const     & t ) {   return GetTreeLeafPos( t ).data();             }
-inline LeafBaseDataType const * GetTreeLeafPosData( LinearizedTreeData const & t ) {   return GetVectorData( GetTreeLeafPos( t ) );   }
-inline size_t GetTreeLeafPosSize( LinearizedTree const     & t ) {   return GetTreeLeafPos( t ).size();   }
-inline size_t GetTreeLeafPosSize( LinearizedTreeData const & t ) {   return GetVectorSize( GetTreeLeafPos( t ) );   }
-
-inline LinearizedTreeData GetTreeData( LinearizedTree const & t ) {
-		return LinearizedTreeData{ GetTreeDepth( t )
-		                         , { GetTreeNodesData( t )  , GetTreeNodesSize( t )   }
-		                         , { GetTreeLeavesData( t ) , GetTreeLeavesSize( t )  }
-		                         , { GetTreeLeafPosData( t ), GetTreeLeafPosSize( t ) }
-		                         };
+inline uint32_t StringBufferSizeInWords( size_t strSz ) {
+		size_t bufSz = strSz + 1;   // For \0
+		return bufSz / sizeof( uint32_t ) + ((bufSz % sizeof( uint32_t )) != 0 ? 1 : 0);
 }
 
-void WriteLinearizedTree( FILE * file, LinearizedTreeData const & t );
-
-size_t GetTreeNumberLeaves( FILE * file );
-
-void WriteReadableLinearizedTree( FILE * file, LinearizedTreeData const & td );
-void WriteReadableLinearizedNodes( FILE * file, LinearizedTreeData const & td );
-void WriteReadableLinearizedLeaves( FILE * file, LinearizedTreeData const & td );
-void WriteReadableLinearizedLeafPos( FILE * file, LinearizedTreeData const & td );
-
-LinearizedTree     ReadLinearizedTree( FILE * file );
-LinearizedTreeData ResolveLinearizedTree( Byte const * bytes, size_t size );
+inline uint32_t LeavesLinkSize( size_t treeDepth ) {
+		return (StringBufferSizeInWords( treeDepth ) + 1)*sizeof( uint32_t );
+}
 
 typedef std::pair< char, uint32_t > Components;
 inline char     GetAAChar( Components const & comp )     {   return std::get< 0 >( comp );   }
@@ -106,100 +55,142 @@ inline uint32_t ExtractEncodedLeafLink( EncodedNodeType val ) {
 		return val & BITS_FOR_LINK_MASK;
 }
 
-template< typename F >
-inline void ForNodeChildren( LinearizedTreeData const & tree, uint32_t index, F && f ) {
-		EncodedNodeType const * data = GetTreeNodesData( tree );
-		size_t childNumber = 0;
-		while ( true ) {
-				EncodedNodeType val = data[index++];
-				if ( val == 0 ) {
-						break;
-				}
+class MemPepTree {
+	public:
+		MemPepTree( uint32_t depth
+		          , std::vector< EncodedNodeType >  && nodes
+		          , std::vector< LeafBaseDataType > && leaves
+		          , std::vector< LeafBaseDataType > && leafPos
+		          );
 
-				EncodedNodeType leafStart = ExtractEncodedLeafLink( data[index++] );
-				EncodedNodeType leafStop;
-				if ( index < GetTreeNodesSize( tree ) - 1 ) {
-						leafStop = data[index+1];
-						if ( data[index] == 0 ) {   // presence of end-of-children sentinel
-								leafStop = data[index+2];
+	public:
+		void Write( FILE * file ) const;
+
+	private:
+		uint32_t depth;
+		std::vector< EncodedNodeType >  nodes;
+		std::vector< LeafBaseDataType > leaves;
+		std::vector< LeafBaseDataType > leafPos;
+};
+
+class MMappedPepTree {
+	public:
+		explicit MMappedPepTree( const char * filename );
+
+		~MMappedPepTree();
+
+	public:
+		uint32_t Depth() const;
+
+		uint32_t GetNumberLeaves() const;
+
+		void WriteReadableTree   ( FILE * file ) const;
+		void WriteReadableNodes  ( FILE * file ) const;
+		void WriteReadableLeaves ( FILE * file ) const;
+		void WriteReadableLeafPos( FILE * file ) const;
+
+		EncodedNodeType const * GetNodesData() const;
+		size_t                  GetNodesSize() const;
+
+		LeafBaseDataType const * GetLeavesData() const;
+		size_t                   GetLeavesSize() const;
+
+		LeafBaseDataType const * GetLeafPosData() const;
+		size_t                   GetLeafPosSize() const;
+
+	public:
+		template< typename F >
+		inline void ForNodeChildren( uint32_t index, F && f ) const {
+				auto data = GetNodesData();
+				size_t childNumber = 0;
+				while ( true ) {
+						EncodedNodeType val = data[index++];
+						if ( val == 0 ) {
+								break;
 						}
-						leafStop = ExtractEncodedLeafLink( leafStop  );
-						if ( leafStop < leafStart ) {   // new tree depth line
-								leafStop = GetTreeLeavesSize( tree ) - 1;   // do not count last '\0' in leaves
+
+						EncodedNodeType leafStart = ExtractEncodedLeafLink( data[index++] );
+						EncodedNodeType leafStop;
+						if ( index < GetNodesSize() - 1 ) {
+								leafStop = data[index+1];
+								if ( data[index] == 0 ) {   // presence of end-of-children sentinel
+										leafStop = data[index+2];
+								}
+								leafStop = ExtractEncodedLeafLink( leafStop  );
+								if ( leafStop < leafStart ) {   // new tree depth line
+										leafStop = GetLeavesSize() - 1;   // do not count last '\0' in leaves
+								}
+						} else {
+								leafStop = GetLeavesSize() - 1;   // do not count last '\0' in leaves
 						}
-				} else {
-						leafStop = GetTreeLeavesSize( tree ) - 1;   // do not count last '\0' in leaves
+						auto comp = ExtractComponents( val );
+						f( childNumber, GetAAChar( comp ), GetChildIndex( comp ), leafStart, leafStop );
+						++childNumber;
 				}
-				auto comp = ExtractComponents( val );
-				f( childNumber, GetAAChar( comp ), GetChildIndex( comp ), leafStart, leafStop );
-				++childNumber;
 		}
-}
 
-inline uint32_t StringBufferSizeInWords( size_t strSz ) {
-		size_t bufSz = strSz + 1;   // For \0
-		return bufSz / sizeof( uint32_t ) + ((bufSz % sizeof( uint32_t )) != 0 ? 1 : 0);
-}
-
-inline uint32_t LeavesLinkSize( size_t treeDepth ) {
-		return (StringBufferSizeInWords( treeDepth ) + 1)*sizeof( uint32_t );
-}
-
-template< typename F >
-inline void ExtractLeafCallF( Byte const * data, size_t alignedBufSz, F && f ) {
-		Byte const * p = data + alignedBufSz*sizeof( uint32_t );
-		uint32_t offset = *p++ << 24;
-		offset         += *p++ << 16;
-		offset         += *p++ <<  8;
-		offset         += *p;
-		f( (char const *)data, offset );
-}
-
-template< typename F >
-inline void ForLeaf( LinearizedTreeData const & tree, uint32_t index, F && f ) {
-		LeafBaseDataType const * data = GetTreeLeavesData( tree ) + index;
-		size_t alignedBufSz = StringBufferSizeInWords( GetTreeDepth( tree ) );
-		ExtractLeafCallF( data, alignedBufSz, std::forward< F >( f ) );
-}
-
-template< typename F >
-inline void ForEachLeaf( LinearizedTreeData const & tree, F && f ) {
-		LeafBaseDataType const * data = GetTreeLeavesData( tree );
-		size_t alignedBufSz = StringBufferSizeInWords( GetTreeDepth( tree ) );
-		while ( *data != '\0' ) {
+		template< typename F >
+		inline void ForLeaf( uint32_t index, F && f ) const {
+				auto data = GetLeavesData() + index;
+				size_t alignedBufSz = StringBufferSizeInWords( Depth() );
 				ExtractLeafCallF( data, alignedBufSz, std::forward< F >( f ) );
-				data += (alignedBufSz + 1)*sizeof( uint32_t );
 		}
-}
 
-template< typename F >
-inline uint32_t ForLeafPos( LinearizedTreeData const & tree, uint32_t index, F && f ) {
-		LeafBaseDataType const * base = GetTreeLeafPosData( tree ) + index;
-		LeafBaseDataType const * data = base;
-
-		uint16_t listSize = *data++ <<  8;
-		listSize         += *data++;
-		f.ListSize( listSize );
-		for( uint16_t i = 0; i < listSize; ++i ) {
-				uint32_t protIndex = *data++ << 24;
-				protIndex         += *data++ << 16;
-				protIndex         += *data++ <<  8;
-				protIndex         += *data++;
-
-				uint16_t nb = (*data++) << 8;
-				nb         += *data++;
-				f.AddHeader( protIndex, nb );
-
-				for ( uint16_t i = 0; i != nb; ++i ) {
-						uint16_t val = (*data++) << 8;
-						val         += *data++;
-						f.AddPos( val );
+		template< typename F >
+		inline void ForEachLeaf( F && f ) const {
+				auto data = GetLeavesData();
+				size_t alignedBufSz = StringBufferSizeInWords( Depth() );
+				while ( *data != '\0' ) {
+						ExtractLeafCallF( data, alignedBufSz, std::forward< F >( f ) );
+						data += (alignedBufSz + 1)*sizeof( uint32_t );
 				}
-				f.StopPos();
 		}
-		f.StopHeader();
-		return (uint32_t)(data - base);
-}
+
+		template< typename F >
+		inline uint32_t ForLeafPos( uint32_t index, F && f ) const {
+				auto base = GetLeafPosData() + index;
+				auto data = base;
+
+				uint16_t listSize = *data++ <<  8;
+				listSize         += *data++;
+				f.ListSize( listSize );
+				for( uint16_t i = 0; i < listSize; ++i ) {
+						uint32_t protIndex = *data++ << 24;
+						protIndex         += *data++ << 16;
+						protIndex         += *data++ <<  8;
+						protIndex         += *data++;
+
+						uint16_t nb = (*data++) << 8;
+						nb         += *data++;
+						f.AddHeader( protIndex, nb );
+
+						for ( uint16_t i = 0; i != nb; ++i ) {
+								uint16_t val = (*data++) << 8;
+								val         += *data++;
+								f.AddPos( val );
+						}
+						f.StopPos();
+				}
+				f.StopHeader();
+				return (uint32_t)(data - base);
+		}
+
+	private:
+		int fd;
+		uint32_t fileSize;
+		char const * ptr;
+
+	private:
+		template< typename F >
+		inline void ExtractLeafCallF( Byte const * data, size_t alignedBufSz, F && f ) const {
+				Byte const * p = data + alignedBufSz*sizeof( uint32_t );
+				uint32_t offset = *p++ << 24;
+				offset         += *p++ << 16;
+				offset         += *p++ <<  8;
+				offset         += *p;
+				f( (char const *)data, offset );
+		}
+};
 
 // ~~~ Node Based Tree ~~~ //
 struct Trie {
@@ -213,7 +204,7 @@ struct Trie {
 		};
 
 	public:
-		explicit Trie( size_t treeDepth )
+		explicit Trie( uint32_t treeDepth )
 			: depth( treeDepth ) {
 				AllocateNode();   // root
 		}
@@ -228,17 +219,17 @@ struct Trie {
 		Node       * Root()       {   return GetNode( 0 );   }
 		Node const * Root() const {   return GetNode( 0 );   }
 
-		size_t Depth() const {   return depth;   }
+		uint32_t Depth() const {   return depth;   }
 
 		size_t NumNodes() const  {   return nodes .size();    }
 		size_t NumLeaves() const {   return leaves.size();    }
 
 		size_t GetLeafCreatePath( char const * seq );
 
-		LinearizedTree LinearizeTree() const;
+		MemPepTree LinearizeTree() const;
 
 	private:
-		size_t depth;
+		uint32_t depth;
 
 		std::vector< Node > nodes;
 		std::vector< Leaf > leaves;

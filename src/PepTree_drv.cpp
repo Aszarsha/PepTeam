@@ -38,9 +38,10 @@ void PepTreeCreation( char * argv[] ) {
 		MMappedFastIdx idx( argv[2] );
 
 		printf( "Creating PepTree of depth %zu from \"%s\"...\n", fragSize, argv[ 2 ] );
-		auto indices   = idx.GetIndices();
-		auto names     = idx.GetNames();
-		auto sequences = idx.GetSequences();
+		auto startTimer = chrono::high_resolution_clock::now();
+		auto indices   = idx.GetIndicesData();
+		auto names     = idx.GetNamesData();
+		auto sequences = idx.GetSequencesData();
 		auto seqSize   = idx.GetSequencesSize();
 
 		Trie trie( fragSize );
@@ -75,20 +76,25 @@ void PepTreeCreation( char * argv[] ) {
 				}
 				if ( i - fragmentStart == fragSize-1 ) {
 						auto leafIndex = trie.GetLeafCreatePath( sequences + fragmentStart );
-						trie.GetLeaf( leafIndex )->positions[ proteinIndex ].push_back( i - sequenceStart );
+						trie.GetLeaf( leafIndex )->positions[ proteinIndex ].push_back( fragmentStart - sequenceStart );
 
 						++fragmentStart;
 				}
 		}
 	End_Outer_Loop:
+		auto finishTimer = chrono::high_resolution_clock::now();
+		auto elapsed1 = finishTimer - startTimer;
+		printf( "   ...PepTree trie created in %ld seconds.\n"
+		      , chrono::duration_cast< chrono::seconds >( elapsed1 ).count()
+		      );
 
 		try {
 				printf( "Linearizing tree structure...\n" );
-				auto startTimer = chrono::high_resolution_clock::now();
+				startTimer = chrono::high_resolution_clock::now();
 
 				auto tree = trie.LinearizeTree();
 
-				auto finishTimer = chrono::high_resolution_clock::now();
+				finishTimer = chrono::high_resolution_clock::now();
 				auto elapsed2 = finishTimer - startTimer;
 				auto nbNodes = trie.NumLeaves() + trie.NumNodes();
 				printf( "   ...linearized in %ld seconds (%zu node%s: %zu internal%s, %zu lea%s).\n"
@@ -105,7 +111,7 @@ void PepTreeCreation( char * argv[] ) {
 						fprintf( stderr, "Unable to open output file \"%s\"\n", outputPepTreeFilenameStream.str().c_str() );
 						exit( 1 );
 				}
-				WriteLinearizedTree( outputPepTreeFile, GetTreeData( tree ) );
+				tree.Write( outputPepTreeFile );
 				fclose( outputPepTreeFile );
 		} catch( std::exception & e ) {
 				fprintf( stderr, "%s\n", e.what() );
@@ -127,22 +133,16 @@ int main( int argc, char * argv[] ) {
 				if ( argc != 3 ) {
 						UsageError( argv );
 				}
-				auto treeFile = fopen( argv[ 2 ], "rb" );
-				if ( !treeFile ) {
-						fprintf( stderr, "Unable to open PepTree file \"%s\"\n", argv[ 2 ] );
-						exit( 1 );
-				}
-				auto tree = ReadLinearizedTree( treeFile );
+				MMappedPepTree tree( argv[ 2 ] );
 
 				switch ( argv[ 1 ][ 1 ] ) {
-					case 'd': {   fprintf( stdout, "Depth: %d\n", GetTreeDepth( tree ) );                       } break;
-					case 'v': {   WriteReadableLinearizedTree   ( stdout, GetTreeData( tree ) );                } break;
-					case 'n': {   WriteReadableLinearizedNodes  ( stdout, GetTreeData( tree ) );                } break;
-					case 'l': {   WriteReadableLinearizedLeaves ( stdout, GetTreeData( tree ) );                } break;
-					case 'p': {   WriteReadableLinearizedLeafPos( stdout, GetTreeData( tree ) );                } break;
+					case 'd': {   fprintf( stdout, "Depth: %u\n", tree.Depth() );   } break;
+					case 'v': {   tree.WriteReadableTree   ( stdout );              } break;
+					case 'n': {   tree.WriteReadableNodes  ( stdout );              } break;
+					case 'l': {   tree.WriteReadableLeaves ( stdout );              } break;
+					case 'p': {   tree.WriteReadableLeafPos( stdout );              } break;
 					default: UsageError( argv );
 				}
-				fclose( treeFile );
 		}
 
 		return 0;

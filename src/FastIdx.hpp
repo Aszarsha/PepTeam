@@ -33,7 +33,6 @@ class MemFastIdx {
 
 		std::vector< char >       & GetSequences()       {   return std::get< 2 >( idx );   }
 		std::vector< char > const & GetSequences() const {   return std::get< 2 >( idx );   }
-
 };
 
 class MMappedFastIdx {
@@ -44,15 +43,18 @@ class MMappedFastIdx {
 
 	public:
 		size_t           Size() const;
-		size_t           GetIndicesSize() const;
-		size_t           GetNamesSize() const;
-		size_t           GetSequencesSize() const;
-		uint32_t const * GetIndices() const;
-		char const     * GetNames() const;
-		char const     * GetSequences() const;
 
-		char const * GetName    ( size_t index ) {   return GetNamesData    () + GetIndicesData()[ 2*index   ];   }
-		char const * GetSequence( size_t index ) {   return GetSequencesData() + GetIndicesData()[ 2*index+1 ];   }
+		uint32_t const * GetIndicesData() const;
+		size_t           GetIndicesSize() const;
+
+		char const     * GetNamesData() const;
+		size_t           GetNamesSize() const;
+
+		char const     * GetSequencesData() const;
+		size_t           GetSequencesSize() const;
+
+		char const * GetName    ( size_t index ) const {   return GetNamesData    () + GetIndicesData()[ 2*index   ];   }
+		char const * GetSequence( size_t index ) const {   return GetSequencesData() + GetIndicesData()[ 2*index+1 ];   }
 
 	private:
 		int fd;

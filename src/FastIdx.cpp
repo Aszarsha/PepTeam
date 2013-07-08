@@ -77,13 +77,20 @@ MMappedFastIdx::~MMappedFastIdx() {
 		close( fd );
 }
 
-
 size_t MMappedFastIdx::Size() const {
 		return GetIndicesSize()/2;
 }
 
+uint32_t const * MMappedFastIdx::GetIndicesData() const {
+		return reinterpret_cast< uint32_t const * >( ptr + indicesOffset );
+}
+
 size_t MMappedFastIdx::GetIndicesSize() const {
 		return (reinterpret_cast< uint32_t const * >( ptr )[0] - indicesOffset)/sizeof( uint32_t );
+}
+
+char const * MMappedFastIdx::GetNamesData() const {
+		return ptr + reinterpret_cast< uint32_t const * >( ptr )[0];
 }
 
 size_t MMappedFastIdx::GetNamesSize() const {
@@ -91,18 +98,10 @@ size_t MMappedFastIdx::GetNamesSize() const {
 		return tmp[1] - tmp[0];
 }
 
+char const * MMappedFastIdx::GetSequencesData() const {
+		return ptr + reinterpret_cast< uint32_t const * >( ptr )[1];
+}
+
 size_t MMappedFastIdx::GetSequencesSize() const {
 		return fileSize - reinterpret_cast< uint32_t const * >( ptr )[1];
-}
-
-uint32_t const * MMappedFastIdx::GetIndices() const {
-		return reinterpret_cast< uint32_t const * >( ptr + indicesOffset );
-}
-
-char const * MMappedFastIdx::GetNames() const {
-		return ptr + reinterpret_cast< uint32_t const * >( ptr )[0];
-}
-
-char const * MMappedFastIdx::GetSequences() const {
-		return ptr + reinterpret_cast< uint32_t const * >( ptr )[1];
 }
