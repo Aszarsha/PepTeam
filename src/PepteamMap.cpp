@@ -20,14 +20,6 @@
 using namespace std;
 using boost::range::for_each;
 
-typedef string   fragment_t;
-typedef uint32_t protein_t;
-typedef string   peptide_t;
-
-typedef map< peptide_t, vector< pair< size_t, double > > > pep2posAndScore_map;
-typedef map< fragment_t, pep2posAndScore_map > frag2pep_map;
-typedef map< protein_t, frag2pep_map > prot2pep_map;
-
 static size_t fragSize;
 static double cutoffHomology;
 static int homologyMatrix[24][24];
@@ -81,42 +73,7 @@ namespace {
 			return (GetScoreNum( s ) + l) / (GetScoreDen( s ) + k) >= cutoffHomology;   // early accept
 	}
 
-	struct MappingResolvingFunctor {
-			static size_t nbStringSimilarityResolved;
-			static size_t nbMappingsResolved;
-
-			double score;
-			string query;
-			string subject;
-			uint32_t curProt;
-			prot2pep_map & m;
-
-			MappingResolvingFunctor( string && q, string && s, double sco, prot2pep_map & mm )
-				: score( sco )
-				, query( move( q ) )
-				, subject( move( s ) )
-				, m( mm ) {
-						++nbStringSimilarityResolved;
-			}
-
-			void ListSize( uint16_t ) {   }
-
-			void AddHeader( uint32_t protNumber, uint16_t ) {
-					curProt = protNumber;
-			}
-			void StopHeader() {   }
-
-			void AddPos( uint16_t p ) {
-#if !defined( PROFILE_PERF )
-					m[curProt][subject][query].push_back( make_pair( p, score ) );
-#endif
-					++nbMappingsResolved;
-			}
-			void StopPos() {   }
-	};
-	size_t MappingResolvingFunctor::nbMappingsResolved;
-	size_t MappingResolvingFunctor::nbStringSimilarityResolved;
-
+	size_t nbStringSimilarity = 0;
 #if defined( PROFILE_PERF )
 	static vector< tuple< size_t, size_t, size_t > > refuseStats;
 	static vector< tuple< size_t, size_t, size_t > > acceptStats;
@@ -127,23 +84,24 @@ namespace {
 	}
 
 	template< typename F >
-	void ResolveMapping( prot2pep_map & results
+	void ResolveMapping( FILE * file
 	                   , MMappedPepTree const & query  , uint32_t queryStartIndex  , uint32_t queryStopIndex
 	                   , MMappedPepTree const & subject, uint32_t subjectStartIndex, uint32_t subjectStopIndex
 	                   , F && scoreFunc
 	                   ) {
-			query.ForLeaf( queryStartIndex, [&,subjectStartIndex]( char const * qStr, uint32_t qOffset ) {
-					subject.ForLeaf( subjectStartIndex, [&]( char const * sStr, uint32_t sOffset ) {
-							subject.ForLeafPos( sOffset, MappingResolvingFunctor{ string( qStr )
-							                                                    , string( sStr )
-							                                                    , scoreFunc( qStr, sStr )
-							                                                    , results
-							                                                    } );
-					});
-			});
+			for ( uint32_t qIdx = queryStartIndex; qIdx != queryStopIndex; qIdx += query.GetLeafIndexIncrement() ) {
+					for ( uint32_t sIdx = subjectStartIndex; sIdx != subjectStopIndex; sIdx += subject.GetLeafIndexIncrement() ) {
+							query.ForLeaf( qIdx, [=]( char const * qStr, uint32_t ) {
+									subject.ForLeaf( sIdx, [=]( char const * sStr, uint32_t ) {
+											fprintf( file, "%u %u %g\n", qIdx, sIdx, scoreFunc( qStr, sStr ) );
+									});
+							});
+							++nbStringSimilarity;
+					}
+			}
 	}
 
-	void MapTrees( prot2pep_map & results
+	void MapTrees( FILE * file
 	             , MMappedPepTree const & query  , uint32_t queryIndex
 	             , MMappedPepTree const & subject, uint32_t subjectIndex
 	             , SimilarityScore curScore, size_t depth
@@ -168,13 +126,13 @@ namespace {
 							} else if ( Accept( newScore, depth ) ) {
 									if ( depth == fragSize ) {
 											double scoreVal = GetScoreNum( newScore ) / (double)GetScoreDen( newScore );
-											ResolveMapping( results
+											ResolveMapping( file
 											              , query  , queryStartLeaf  , queryStopLeaf
 											              , subject, subjectStartLeaf, subjectStopLeaf
 											              , [scoreVal]( char const *, char const * ) {   return scoreVal;   }
 											              );
 									} else {
-											ResolveMapping( results
+											ResolveMapping( file
 											              , query  , queryStartLeaf  , queryStopLeaf
 											              , subject, subjectStartLeaf, subjectStopLeaf
 											              , &WordsSimilarityFunction
@@ -186,7 +144,7 @@ namespace {
 									get< 2 >( acceptStats[depth-1] ) += GetRangeNumLeaves( subjectStartLeaf, subjectStopLeaf );
 #endif
 							} else if ( depth < fragSize ) {
-									MapTrees( results
+									MapTrees( file
 									        , query, queryChildIndex, subject, subjectChildIndex
 									        , newScore, depth + 1
 									        );
@@ -197,9 +155,7 @@ namespace {
 
 }
 
-prot2pep_map MapTrees( MMappedPepTree const & query, MMappedPepTree const & subject ) {
-		prot2pep_map results;
-
+void MapTrees( FILE * file, MMappedPepTree const & query, MMappedPepTree const & subject ) {
 		fragSize = query.Depth();
 		size_t d = subject.Depth();
 		if ( d != fragSize ) {
@@ -213,25 +169,7 @@ prot2pep_map MapTrees( MMappedPepTree const & query, MMappedPepTree const & subj
 		acceptStats.resize( fragSize );
 #endif
 
-		MapTrees( results, query, 0, subject, 0, { 0.0, 0.0 }, 1 );
-
-		return results;
-}
-
-void PrintProteins2Peptides( FILE * file, prot2pep_map const & mappings ) {
-		for_each( mappings, [&]( prot2pep_map::value_type const & prot ) {
-				fprintf( file, "%u\t", prot.first );
-				for_each( prot.second, [&]( frag2pep_map::value_type const & frag ) {
-						for_each( frag.second, [&]( pep2posAndScore_map::value_type const & pep ) {
-								for_each( pep.second, [&]( pair< size_t, double > const & pos ) {
-										fprintf( file, "%s/%s[%zu](%g)\t"
-										       , pep.first.c_str(), frag.first.c_str(), pos.first, pos.second
-										       );
-								});
-						});
-				});
-				fprintf( file, "\n" );
-		});
+		MapTrees( file, query, 0, subject, 0, { 0.0, 0.0 }, 1 );
 }
 
 void UsageError( char * argv[] ) {
@@ -275,11 +213,12 @@ int main( int argc, char * argv[] ) {
 
 		printf( "Similarity threshold: %f\n", cutoffHomology );
 
-		ostringstream prot2pepStream;
-		prot2pepStream << argv[1] << ".mapping.prot2pep." << (int)(100*cutoffHomology);
-		FILE * prot2pepFile = fopen( prot2pepStream.str().c_str(), "w" );
-		if ( !prot2pepFile ) {
-				fprintf( stderr, "Unable to open output file \"%s\"\n", prot2pepStream.str().c_str() );
+		ostringstream outputFilenameStream;
+		outputFilenameStream << argv[1] << ".mapping."
+		                     << (int)cutoffHomology << '_' << (int)floor( 100*(cutoffHomology - (int)cutoffHomology) );
+		FILE * outputFile = fopen( outputFilenameStream.str().c_str(), "w" );
+		if ( !outputFile ) {
+				fprintf( stderr, "Unable to open output file \"%s\"\n", outputFilenameStream.str().c_str() );
 				UsageError( argv );   // exit here to avoid creation of the other files if input file is invalid
 		}
 
@@ -292,27 +231,14 @@ int main( int argc, char * argv[] ) {
 				printf( "Intersecting peptides and proteins fragments sets...\n" );
 				auto startTimer = chrono::high_resolution_clock::now();
 
-				prot2pep_map mappings = MapTrees( query, subject );
+				MapTrees( outputFile, query, subject );
+				fclose( outputFile );
 
 				auto finishTimer = chrono::high_resolution_clock::now();
 				auto elapsed2 = finishTimer - startTimer;
-				printf( "   ...%zu mappings found in %zu proteins in %ld seconds.\n"
-				      , MappingResolvingFunctor::nbMappingsResolved, mappings.size()
-				      , chrono::duration_cast< chrono::seconds >( elapsed2 ).count()
+				printf( "   ...%zu mappings found in %ld seconds.\n"
+				      , nbStringSimilarity, chrono::duration_cast< chrono::seconds >( elapsed2 ).count()
 				      );
-
-				cerr << "Printing proteins to peptides..." << endl;
-				startTimer = chrono::high_resolution_clock::now();
-
-				PrintProteins2Peptides( prot2pepFile, mappings );
-
-				finishTimer = chrono::high_resolution_clock::now();
-				auto elapsed4 = finishTimer - startTimer;
-				cerr << "   ...done in " << chrono::duration_cast< chrono::seconds >( elapsed4 ).count() << " seconds." << endl;
-
-				cerr << "Total execution time: "
-				     << chrono::duration_cast< chrono::seconds >( elapsed2 + elapsed4 ).count()
-				     << " seconds." << endl;
 #if defined( PROFILE_PERF )
 				PrintExecutionStats( stdout );
 #endif

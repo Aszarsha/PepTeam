@@ -98,6 +98,10 @@ class MMappedPepTree {
 		LeafBaseDataType const * GetLeafPosData() const;
 		size_t                   GetLeafPosSize() const;
 
+		size_t GetLeafIndexIncrement() const {
+				return (StringBufferSizeInWords( Depth() ) + 1)*sizeof( uint32_t );
+		}
+
 	public:
 		template< typename F >
 		inline void ForNodeChildren( uint32_t index, F && f ) const {
@@ -134,6 +138,16 @@ class MMappedPepTree {
 				auto data = GetLeavesData() + index;
 				size_t alignedBufSz = StringBufferSizeInWords( Depth() );
 				ExtractLeafCallF( data, alignedBufSz, std::forward< F >( f ) );
+		}
+
+		template< typename F >
+		inline void ForLeafRange( uint32_t start, uint32_t stop, F && f ) {
+				auto data = GetLeavesData() + start;
+				size_t alignedBufSz = StringBufferSizeInWords( Depth() );
+				while ( start < stop ) {
+						ExtractLeafCallF( data, alignedBufSz, std::forward< F >( f ) );
+						start += alignedBufSz + 1;
+				}
 		}
 
 		template< typename F >
