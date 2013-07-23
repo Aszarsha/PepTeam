@@ -20,14 +20,6 @@
 using namespace std;
 using boost::range::for_each;
 
-typedef string   fragment_t;
-typedef uint32_t protein_t;
-typedef string   peptide_t;
-
-typedef map< peptide_t, vector< pair< size_t, double > > > pep2posAndScore_map;
-typedef map< fragment_t, pep2posAndScore_map > frag2pep_map;
-typedef map< protein_t, frag2pep_map > prot2pep_map;
-
 static size_t fragSize;
 static double cutoffHomology;
 static int homologyMatrix[24][24];
@@ -47,6 +39,22 @@ namespace {
 	inline int GetScoreNum( SimilarityScore const & s ) {   return get< 0 >( s );   }
 	inline int GetScoreDen( SimilarityScore const & s ) {   return get< 1 >( s );   }
 
+	inline double WordsSimilarityFunction( char const * q, char const * s ) {
+			int subjectCost = 0, queryCost = 0, homologyCost = 0;
+			while ( *q != '\0' ) {
+					Fasta::AAIndex qIdx = Fasta::Char2Index( *q );
+					Fasta::AAIndex sIdx = Fasta::Char2Index( *s );
+
+					queryCost    += homologyMatrix[qIdx][qIdx];
+					subjectCost  += homologyMatrix[sIdx][sIdx];
+					homologyCost += homologyMatrix[qIdx][sIdx];
+
+					++q;
+					++s;
+			}
+			return 2.0*homologyCost/static_cast< double >(queryCost + subjectCost);
+	}
+
 	inline SimilarityScore SimilarityFunction( char qChar, char sChar, SimilarityScore const & s ) {
 			int n = 2*homologyMatrix[Fasta::Char2Index( qChar )][Fasta::Char2Index( sChar )];
 			int d = homologyMatrix[Fasta::Char2Index( qChar )][Fasta::Char2Index( qChar )]
@@ -65,43 +73,7 @@ namespace {
 			return (GetScoreNum( s ) + l) / (GetScoreDen( s ) + k) >= cutoffHomology;   // early accept
 	}
 
-	struct MappingResolvingFunctor {
-			static size_t nbStringSimilarityResolved;
-			static size_t nbMappingsResolved;
-
-			double score;
-			string const & query;
-			string const & subject;
-			uint32_t curProt;
-			prot2pep_map & m;
-
-
-			MappingResolvingFunctor( string const & q, string const & s, double sco, prot2pep_map & mm )
-				: score( sco )
-				, query( q )
-				, subject( s )
-				, m( mm ) {
-						++nbStringSimilarityResolved;
-			}
-
-			void ListSize( uint16_t ) {   }
-
-			void AddHeader( uint32_t protNumber, uint16_t ) {
-					curProt = protNumber;
-			}
-			void StopHeader() {   }
-
-			void AddPos( uint16_t p ) {
-#if !defined( PROFILE_PERF )
-					m[curProt][subject][query].push_back( make_pair( p, score ) );
-#endif
-					++nbMappingsResolved;
-			}
-			void StopPos() {   }
-	};
-	size_t MappingResolvingFunctor::nbMappingsResolved;
-	size_t MappingResolvingFunctor::nbStringSimilarityResolved;
-
+	size_t nbStringSimilarity = 0;
 #if defined( PROFILE_PERF )
 	static vector< tuple< size_t, size_t, size_t > > refuseStats;
 	static vector< tuple< size_t, size_t, size_t > > acceptStats;
@@ -111,30 +83,35 @@ namespace {
 			return (stop - start) / LeavesLinkSize( fragSize );
 	}
 
-	void ResolveMapping( prot2pep_map & results
-	                   , LinearizedTreeData const & query  , uint32_t queryStartIndex  , uint32_t queryStopIndex
-	                   , LinearizedTreeData const & subject, uint32_t subjectStartIndex, uint32_t subjectStopIndex
-	                   , double score
+	template< typename F >
+	void ResolveMapping( FILE * file
+	                   , MMappedPepTree const & query  , uint32_t queryStartIndex  , uint32_t queryStopIndex
+	                   , MMappedPepTree const & subject, uint32_t subjectStartIndex, uint32_t subjectStopIndex
+	                   , F && scoreFunc
 	                   ) {
-			ForLeaf( query, queryStartIndex, [&,subjectStartIndex,score]( char const * qStr, uint32_t qOffset ) {
-					ForLeaf( subject, subjectStartIndex, [&,score]( char const * sStr, uint32_t sOffset ) {
-							string qString( qStr ), sString( sStr );
-							ForLeafPos( subject, sOffset, MappingResolvingFunctor{ qString, sString, score, results } );
-					});
-			});
+			for ( uint32_t qIdx = queryStartIndex; qIdx != queryStopIndex; qIdx += query.GetLeafIndexIncrement() ) {
+					for ( uint32_t sIdx = subjectStartIndex; sIdx != subjectStopIndex; sIdx += subject.GetLeafIndexIncrement() ) {
+							query.ForLeaf( qIdx, [=]( char const * qStr, uint32_t ) {
+									subject.ForLeaf( sIdx, [=]( char const * sStr, uint32_t ) {
+											fprintf( file, "%u %u %g\n", qIdx, sIdx, scoreFunc( qStr, sStr ) );
+									});
+							});
+							++nbStringSimilarity;
+					}
+			}
 	}
 
-	void MapTrees( prot2pep_map & results
-	             , LinearizedTreeData const & query  , uint32_t queryIndex
-	             , LinearizedTreeData const & subject, uint32_t subjectIndex
+	void MapTrees( FILE * file
+	             , MMappedPepTree const & query  , uint32_t queryIndex
+	             , MMappedPepTree const & subject, uint32_t subjectIndex
 	             , SimilarityScore curScore, size_t depth
 	             ) {
-			ForNodeChildren( query, queryIndex
+			query.ForNodeChildren( queryIndex
 			               , [&,subjectIndex,depth,curScore]( size_t
 			                                                , char queryChar, uint32_t queryChildIndex
 			                                                , uint32_t queryStartLeaf, uint32_t queryStopLeaf
 			                                                ) {
-					ForNodeChildren( subject, subjectIndex
+					subject.ForNodeChildren( subjectIndex
 					               , [&,depth,curScore]( size_t
 					                                   , char subjectChar, uint32_t subjectChildIndex
 					                                   , uint32_t subjectStartLeaf, uint32_t subjectStopLeaf
@@ -147,19 +124,27 @@ namespace {
 									get< 2 >( refuseStats[depth-1] ) += GetRangeNumLeaves( subjectStartLeaf, subjectStopLeaf );
 #endif
 							} else if ( Accept( newScore, depth ) ) {
+									if ( depth == fragSize ) {
 											double scoreVal = GetScoreNum( newScore ) / (double)GetScoreDen( newScore );
-											ResolveMapping( results
+											ResolveMapping( file
 											              , query  , queryStartLeaf  , queryStopLeaf
 											              , subject, subjectStartLeaf, subjectStopLeaf
-											              , scoreVal
+											              , [scoreVal]( char const *, char const * ) {   return scoreVal;   }
 											              );
+									} else {
+											ResolveMapping( file
+											              , query  , queryStartLeaf  , queryStopLeaf
+											              , subject, subjectStartLeaf, subjectStopLeaf
+											              , &WordsSimilarityFunction
+											              );
+									}
 #if defined( PROFILE_PERF )
-											get< 0 >( acceptStats[depth-1] ) += 1;
-											get< 1 >( acceptStats[depth-1] ) += GetRangeNumLeaves( queryStartLeaf  , queryStopLeaf   );
-											get< 2 >( acceptStats[depth-1] ) += GetRangeNumLeaves( subjectStartLeaf, subjectStopLeaf );
+									get< 0 >( acceptStats[depth-1] ) += 1;
+									get< 1 >( acceptStats[depth-1] ) += GetRangeNumLeaves( queryStartLeaf  , queryStopLeaf   );
+									get< 2 >( acceptStats[depth-1] ) += GetRangeNumLeaves( subjectStartLeaf, subjectStopLeaf );
 #endif
 							} else if ( depth < fragSize ) {
-									MapTrees( results
+									MapTrees( file
 									        , query, queryChildIndex, subject, subjectChildIndex
 									        , newScore, depth + 1
 									        );
@@ -170,11 +155,9 @@ namespace {
 
 }
 
-prot2pep_map MapTrees( LinearizedTreeData const & query, LinearizedTreeData const & subject ) {
-		prot2pep_map results;
-
-		fragSize = GetTreeDepth( query );
-		size_t d = GetTreeDepth( subject );
+void MapTrees( FILE * file, MMappedPepTree const & query, MMappedPepTree const & subject ) {
+		fragSize = query.Depth();
+		size_t d = subject.Depth();
 		if ( d != fragSize ) {
 				ostringstream s;
 				s << "Unable to map query over subject, different fragments sizes (" << d << " vs. " << fragSize << ')';
@@ -186,25 +169,7 @@ prot2pep_map MapTrees( LinearizedTreeData const & query, LinearizedTreeData cons
 		acceptStats.resize( fragSize );
 #endif
 
-		MapTrees( results, query, 0, subject, 0, { 0.0, 0.0 }, 1 );
-
-		return results;
-}
-
-void PrintProteins2Peptides( FILE * file, prot2pep_map const & mappings ) {
-		for_each( mappings, [&]( prot2pep_map::value_type const & prot ) {
-				fprintf( file, "%u\t", prot.first );
-				for_each( prot.second, [&]( frag2pep_map::value_type const & frag ) {
-						for_each( frag.second, [&]( pep2posAndScore_map::value_type const & pep ) {
-								for_each( pep.second, [&]( pair< size_t, double > const & pos ) {
-										fprintf( file, "%s/%s[%zu](%g)\t"
-										       , pep.first.c_str(), frag.first.c_str(), pos.first, pos.second
-										       );
-								});
-						});
-				});
-				fprintf( file, "\n" );
-		});
+		MapTrees( file, query, 0, subject, 0, { 0.0, 0.0 }, 1 );
 }
 
 void UsageError( char * argv[] ) {
@@ -248,29 +213,17 @@ int main( int argc, char * argv[] ) {
 
 		printf( "Similarity threshold: %f\n", cutoffHomology );
 
-		FILE * subjectTreeFile = fopen( argv[2], "rb" );
-		if ( !subjectTreeFile ) {
-				fprintf( stderr, "Unable to open subject pepTree file \"%s\"\n", argv[2] );
-				UsageError( argv );   // exit here to avoid creation of the other files if input file is invalid
-		}
-		string queryTreeFilename( argv[1] );
-		FILE * queryTreeFile = fopen( argv[1], "rb" );
-		if ( !queryTreeFile ) {
-				fprintf( stderr, "Unable to open query pepTree file \"%s\"\n", argv[1] );
-				UsageError( argv );   // exit here to avoid creation of the other files if input file is invalid
-		}
-		ostringstream prot2pepStream;
-		prot2pepStream << queryTreeFilename << ".mapping.prot2pep." << (int)(100*cutoffHomology);
-		FILE * prot2pepFile = fopen( prot2pepStream.str().c_str(), "w" );
-		if ( !prot2pepFile ) {
-				fprintf( stderr, "Unable to open output file \"%s\"\n", prot2pepStream.str().c_str() );
+		ostringstream outputFilenameStream;
+		outputFilenameStream << argv[1] << ".mapping."
+		                     << (int)cutoffHomology << '_' << (int)floor( 100*(cutoffHomology - (int)cutoffHomology) );
+		FILE * outputFile = fopen( outputFilenameStream.str().c_str(), "w" );
+		if ( !outputFile ) {
+				fprintf( stderr, "Unable to open output file \"%s\"\n", outputFilenameStream.str().c_str() );
 				UsageError( argv );   // exit here to avoid creation of the other files if input file is invalid
 		}
 
-		auto query   = ReadLinearizedTree( queryTreeFile );
-		fclose( queryTreeFile );
-		auto subject = ReadLinearizedTree( subjectTreeFile );
-		fclose( subjectTreeFile );
+		MMappedPepTree query( argv[1] );
+		MMappedPepTree subject( argv[2] );
 
 		InitHomology();
 
@@ -278,27 +231,14 @@ int main( int argc, char * argv[] ) {
 				printf( "Intersecting peptides and proteins fragments sets...\n" );
 				auto startTimer = chrono::high_resolution_clock::now();
 
-				prot2pep_map mappings = MapTrees( GetTreeData( query ), GetTreeData( subject ) );
+				MapTrees( outputFile, query, subject );
+				fclose( outputFile );
 
 				auto finishTimer = chrono::high_resolution_clock::now();
 				auto elapsed2 = finishTimer - startTimer;
-				printf( "   ...%zu mappings found in %zu proteins in %ld seconds.\n"
-				      , MappingResolvingFunctor::nbMappingsResolved, mappings.size()
-				      , chrono::duration_cast< chrono::seconds >( elapsed2 ).count()
+				printf( "   ...%zu mappings found in %ld seconds.\n"
+				      , nbStringSimilarity, chrono::duration_cast< chrono::seconds >( elapsed2 ).count()
 				      );
-
-				cerr << "Printing proteins to peptides..." << endl;
-				startTimer = chrono::high_resolution_clock::now();
-
-				PrintProteins2Peptides( prot2pepFile, mappings );
-
-				finishTimer = chrono::high_resolution_clock::now();
-				auto elapsed4 = finishTimer - startTimer;
-				cerr << "   ...done in " << chrono::duration_cast< chrono::seconds >( elapsed4 ).count() << " seconds." << endl;
-
-				cerr << "Total execution time: "
-				     << chrono::duration_cast< chrono::seconds >( elapsed2 + elapsed4 ).count()
-				     << " seconds." << endl;
 #if defined( PROFILE_PERF )
 				PrintExecutionStats( stdout );
 #endif

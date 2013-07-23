@@ -10,6 +10,7 @@ namespace Fasta {
 				case 'A': case 'R': case 'N': case 'D': case 'C': case 'Q': case 'E': case 'G':
 				case 'H': case 'I': case 'L': case 'K': case 'M': case 'F': case 'P': case 'S':
 				case 'T': case 'W': case 'Y': case 'V': case 'B': case 'J': case 'Z': case 'X':
+				case '*':
 						return true;
 				default:
 						return false;
@@ -21,8 +22,6 @@ namespace Fasta {
 	inline AAIndex Char2Index( char aa ) {
 			if ( aa >= 'a' && aa <= 'z' ) {
 					aa += 'A' - 'a';
-			} else if ( !(aa >= 'A' && aa <= 'Z') ) {
-					return -1;
 			}
 
 			switch ( aa ) {
@@ -41,20 +40,21 @@ namespace Fasta {
 				case 'M': {   return  12;   }
 				case 'F': {   return  13;   }
 				case 'P': {   return  14;   }
-				case 'U': {   return -15;   }
-				case 'S': {   return  16;   }
-				case 'T': {   return  17;   }
-				case 'W': {   return  18;   }
-				case 'Y': {   return  19;   }
-				case 'V': {   return  20;   }
+				case 'U': {   return  -2;   }
+				case 'S': {   return  15;   }
+				case 'T': {   return  16;   }
+				case 'W': {   return  17;   }
+				case 'Y': {   return  18;   }
+				case 'V': {   return  19;   }
 
-				case 'B': {   return  21;   }
-				case 'Z': {   return  22;   }
+				case 'B': {   return  20;   }
+				case 'Z': {   return  21;   }
 
-				case 'X': {   return  23;   }
+				case 'X': {   return  22;   }
 
-				case '*': {   return -24;   }
-				case '-': {   return -25;   }
+				case '*': {   return  23;   }
+
+				case '-': {   return  -3;   }
 
 				default:  {   return -1;    }
 			}
@@ -77,20 +77,21 @@ namespace Fasta {
 				case  12: {   return 'M';   }
 				case  13: {   return 'F';   }
 				case  14: {   return 'P';   }
-				case -15: {   return 'U';   }
-				case  16: {   return 'S';   }
-				case  17: {   return 'T';   }
-				case  18: {   return 'W';   }
-				case  19: {   return 'Y';   }
-				case  20: {   return 'V';   }
+				case  -2: {   return 'U';   }
+				case  15: {   return 'S';   }
+				case  16: {   return 'T';   }
+				case  17: {   return 'W';   }
+				case  18: {   return 'Y';   }
+				case  19: {   return 'V';   }
 
-				case  21: {   return 'B';   }
-				case  22: {   return 'Z';   }
+				case  20: {   return 'B';   }
+				case  21: {   return 'Z';   }
 
-				case  23: {   return 'X';   }
+				case  22: {   return 'X';   }
 
-				case -24: {   return '*';   }
-				case -25: {   return '-';   }
+				case	23: {   return '*';   }
+
+				case  -3: {   return '-';   }
 
 				default:  {   return -1;    }
 			}
@@ -99,8 +100,6 @@ namespace Fasta {
 	inline char const * Char2String( char aa ) {
 			if ( aa >= 'a' && aa <= 'z' ) {
 					aa += 'A' - 'a';
-			} else if ( !(aa >= 'A' && aa <= 'Z') ) {
-					return 0;
 			}
 
 			switch (aa) {
@@ -132,9 +131,10 @@ namespace Fasta {
 				case 'X': {   return "Any";                           }
 
 				case '*': {   return "Translation stop";              }
+
 				case '-': {   return "Gap of indeterminate length";   }
 
-				default:  {   return 0;                               }
+				default:  {   return nullptr;                         }
 			}
 	}
 
