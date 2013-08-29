@@ -104,7 +104,7 @@ namespace {
 			arrayLeaves[arrayLeaves.size()-3] = (LeafBaseDataType)(link >> 16);
 			arrayLeaves[arrayLeaves.size()-2] = (LeafBaseDataType)(link >>  8);
 			arrayLeaves[arrayLeaves.size()-1] = (LeafBaseDataType)link;
-			return curIndex;
+			return curIndex / LeavesLinkSize( trie.Depth() );
 	}
 
 	struct NodeQueueData {
@@ -263,8 +263,8 @@ void MMappedPepTree::WriteReadableLeaves( FILE * file ) const {
 		uint32_t index = 0;
 		size_t nodeNumber = 0;
 		ForEachLeaf( [&]( char const * str, uint32_t dataOffset ) {
-				printf( "(%05zu) %06X: %s -> %06X\n", nodeNumber++, index, str, dataOffset );
-				index += (StringBufferSizeInWords( Depth() ) + 1)*sizeof( uint32_t );
+				fprintf( file, "(%05zu) %06X: %s -> %06X\n", nodeNumber++, index, str, dataOffset );
+				index += LeavesLinkSize( Depth() );
 		});
 }
 
@@ -351,7 +351,7 @@ LeafBaseDataType const * MMappedPepTree::GetLeavesData() const {
 size_t MMappedPepTree::GetLeavesSize() const {
 		uint32_t leavesOffset  = reinterpret_cast< uint32_t const * >( ptr )[1];
 		uint32_t leafPosOffset = reinterpret_cast< uint32_t const * >( ptr )[2];
-		return leafPosOffset - leavesOffset;
+		return (leafPosOffset - leavesOffset) / LeavesLinkSize( Depth() );
 }
 
 LeafBaseDataType const * MMappedPepTree::GetLeafPosData() const {
