@@ -98,10 +98,6 @@ class MMappedPepTree {
 		LeafBaseDataType const * GetLeafPosData() const;
 		size_t                   GetLeafPosSize() const;
 
-		size_t GetLeafIndexIncrement() const {
-				return (StringBufferSizeInWords( Depth() ) + 1)*sizeof( uint32_t );
-		}
-
 	public:
 		template< typename F >
 		inline void ForNodeChildren( uint32_t index, F && f ) const {
@@ -122,10 +118,10 @@ class MMappedPepTree {
 								}
 								leafStop = ExtractEncodedLeafLink( leafStop  );
 								if ( leafStop < leafStart ) {   // new tree depth line
-										leafStop = GetLeavesSize() - 1;   // do not count last '\0' in leaves
+										leafStop = GetLeavesSize();
 								}
 						} else {
-								leafStop = GetLeavesSize() - 1;   // do not count last '\0' in leaves
+								leafStop = GetLeavesSize();
 						}
 						auto comp = ExtractComponents( val );
 						f( childNumber, GetAAChar( comp ), GetChildIndex( comp ), leafStart, leafStop );
@@ -135,14 +131,14 @@ class MMappedPepTree {
 
 		template< typename F >
 		inline void ForLeaf( uint32_t index, F && f ) const {
-				auto data = GetLeavesData() + index;
+				auto data = GetLeavesData() + (index * LeavesLinkSize( Depth() ));
 				size_t alignedBufSz = StringBufferSizeInWords( Depth() );
 				ExtractLeafCallF( data, alignedBufSz, std::forward< F >( f ) );
 		}
 
 		template< typename F >
 		inline void ForLeafRange( uint32_t start, uint32_t stop, F && f ) {
-				auto data = GetLeavesData() + start;
+				auto data = GetLeavesData() + (start * LeavesLinkSize( Depth() ));
 				size_t alignedBufSz = StringBufferSizeInWords( Depth() );
 				while ( start < stop ) {
 						ExtractLeafCallF( data, alignedBufSz, std::forward< F >( f ) );
