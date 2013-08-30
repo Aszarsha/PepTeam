@@ -63,13 +63,11 @@ namespace {
 	}
 
 	bool Refuse( SimilarityScore const & s, size_t depth ) {
-			if ( depth < fragSize ) return false;
 			double k = 2.0*((fragSize-depth)*(double)maxHomology);
 			return (GetScoreNum( s ) + k) / (GetScoreDen( s ) + k) < cutoffHomology;   // early refuse
 	}
 
 	bool Accept( SimilarityScore const & s, size_t depth ) {
-			if ( depth < fragSize ) return false;
 			double k = 2.0*((fragSize-depth)*(double)maxHomology);
 			double l = 2.0*((fragSize-depth)*(double)minHomology);
 			return (GetScoreNum( s ) + l) / (GetScoreDen( s ) + k) >= cutoffHomology;   // early accept

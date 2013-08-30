@@ -131,21 +131,20 @@ namespace {
 					nodeQueue.pop();
 
 					size_t thisIndex = arrayNodes.size();
+					if ( thisIndex > UINT32_MAX ) {
+							throw std::runtime_error{ "Node index overflow, abording" };
+					}
+
 					if ( nodeData.nodeIndex == endOfChildrenSentinelIndex) {   // dummy node
 							arrayNodes.resize( thisIndex + 1 );   // default init to 0 = end of children sentinel
 							continue;
 					} else if ( nodeData.nodeIndex != rootSentinelIndex ) {
 							arrayNodes.resize( thisIndex + 2 );   // size for encoded letter+childIndex AND index to first leaf
 
-							// the order if(){...} then affectation here is important
-							// since the root node have the "same index" as its first child
-							// if written the other way around we end up
-							// overwritting the stored aa character with an invalid compressed components parts
 							if ( nodeData.updateParent ) {
-									if ( thisIndex > 134217727 ) {   //< 2^27-1 ~ UINT27_MAX
-											throw std::runtime_error{ "Node index overflow, abording" };
-									}
-									*nodeData.updateParent = CompressComponents( { (char)*nodeData.updateParent, (uint32_t)(thisIndex) } );
+									// there is no need to "encode" this link since we are garanteed it's > 0
+									// (no possible link to the first node (to any children of root for the matter))
+									*nodeData.updateParent = static_cast< uint32_t >( thisIndex );
 							}
 							arrayNodes[thisIndex] = nodeData.genealogy.back();
 					}
@@ -155,10 +154,12 @@ namespace {
 							bool firstChild = true;
 							for_each( node->children, [&]( pair< char, size_t > const & p ) {
 									if ( firstChild ) {
-											nodeData.leafUpdates.push_back( &arrayNodes[thisIndex + 1] );
+											if ( nodeData.nodeIndex != rootSentinelIndex ) {
+													nodeData.leafUpdates.push_back( &arrayNodes[thisIndex] );
+											}
 											nodeQueue.push( NodeQueueData{ p.second
 											                             , nodeData.genealogy + p.first
-											                             , &arrayNodes[thisIndex]
+											                             , &arrayNodes[thisIndex + 1]
 											                             , move( nodeData.leafUpdates )
 											                             } );
 											firstChild = false;
@@ -181,10 +182,10 @@ namespace {
 							}
 
 							for_each( nodeData.leafUpdates, [childLeafIndex]( uint32_t * linkPtr ) {
-									*linkPtr = EncodeLeafLink( childLeafIndex );
+									*linkPtr = CompressComponents( { static_cast< char >( *linkPtr ), childLeafIndex } );
 							});
-							arrayNodes[thisIndex]   = CompressComponents( { nodeData.genealogy.back(), 0 } );
-							arrayNodes[thisIndex+1] = EncodeLeafLink( childLeafIndex );
+							arrayNodes[thisIndex]   = CompressComponents( { nodeData.genealogy.back(), childLeafIndex } );
+							arrayNodes[thisIndex+1] = static_cast< uint32_t >( thisIndex );
 					}
 			}
 	}
@@ -249,12 +250,12 @@ void MMappedPepTree::WriteReadableNodes( FILE * file ) const {
 				uint32_t val = *p++;
 				auto comp = ExtractComponents( val );
 				char c = GetAAChar( comp );
-				if ( IsEncodedLeafLink( val ) ) {
-						fprintf( file, "        %06X: --> %06X\n", index++, ExtractEncodedLeafLink( val ) );
-				} else if ( Fasta::IsValidAA( c ) ) {
-						fprintf( file, "(%05zu) %06X: %c %06X\n", nodeNumber++, index++, c, GetChildIndex( comp ) );
-				} else {
+				if ( Fasta::IsValidAA( c ) ) {
+						fprintf( file, "(%05zu) %06X: %c %06X\n", nodeNumber++, index++, c, GetIndex( comp ) );
+				} else if ( !val ) {
 						fprintf( file, "        %06X: |\n", index++ );
+				} else {
+						fprintf( file, "        %06X: --> %06X\n", index++, val );
 				}
 		}
 }
