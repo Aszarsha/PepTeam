@@ -33,26 +33,15 @@ inline uint32_t LeavesLinkSize( size_t treeDepth ) {
 }
 
 typedef std::pair< char, uint32_t > Components;
-inline char     GetAAChar( Components const & comp )     {   return std::get< 0 >( comp );   }
-inline uint32_t GetChildIndex( Components const & comp ) {   return std::get< 1 >( comp );   }
+inline char     GetAAChar( Components const & comp ) {   return std::get< 0 >( comp );   }
+inline uint32_t GetIndex( Components const & comp )  {   return std::get< 1 >( comp );   }
 inline EncodedNodeType CompressComponents( Components const & comp ) {
 		uint32_t charPart = (Fasta::Char2Index( GetAAChar( comp ) )+1) << NB_BITS_FOR_LINK;
-		uint32_t linkPart = GetChildIndex( comp );   // & BITS_FOR_LINK_MASK;
+		uint32_t linkPart = GetIndex( comp );   // & BITS_FOR_LINK_MASK;
 		return charPart | linkPart;
 }
 inline Components ExtractComponents( EncodedNodeType val ) {
 		return { Fasta::Index2Char( (val>>NB_BITS_FOR_LINK)-1 ), val & BITS_FOR_LINK_MASK };
-}
-inline EncodedNodeType EncodeLeafLink( uint32_t link ) {
-		uint32_t charPart = BITS_FOR_CHAR_MASK;
-		uint32_t linkPart = link;   // & BITS_FOR_LINK_MASK;
-		return charPart | linkPart;
-}
-inline bool IsEncodedLeafLink( EncodedNodeType val ) {
-		return (val & BITS_FOR_CHAR_MASK) == BITS_FOR_CHAR_MASK;
-}
-inline uint32_t ExtractEncodedLeafLink( EncodedNodeType val ) {
-		return val & BITS_FOR_LINK_MASK;
 }
 
 class MemPepTree {
@@ -104,28 +93,30 @@ class MMappedPepTree {
 				auto data = GetNodesData();
 				size_t childNumber = 0;
 				while ( true ) {
-						EncodedNodeType val = data[index++];
+						EncodedNodeType val = data[index];
 						if ( val == 0 ) {
 								break;
 						}
+						auto comp = ExtractComponents( val );
 
-						EncodedNodeType leafStart = ExtractEncodedLeafLink( data[index++] );
+						EncodedNodeType leafStart = GetIndex( comp );
 						EncodedNodeType leafStop;
-						if ( index < GetNodesSize() - 1 ) {
-								leafStop = data[index+1];
-								if ( data[index] == 0 ) {   // presence of end-of-children sentinel
-										leafStop = data[index+2];
+						if ( index+2 < GetNodesSize() - 1 ) {
+								if ( data[index+2] == 0 ) {   // presence of end-of-children sentinel
+										leafStop = GetIndex( ExtractComponents( data[index+3] ) );
+								} else {
+										leafStop = GetIndex( ExtractComponents( data[index+2] ) );
 								}
-								leafStop = ExtractEncodedLeafLink( leafStop  );
-								if ( leafStop < leafStart ) {   // new tree depth line
+
+								if ( leafStop <= leafStart ) {   // new tree depth threshold (might be == for first node)
 										leafStop = GetLeavesSize();
 								}
 						} else {
 								leafStop = GetLeavesSize();
 						}
-						auto comp = ExtractComponents( val );
-						f( childNumber, GetAAChar( comp ), GetChildIndex( comp ), leafStart, leafStop );
+						f( childNumber, GetAAChar( comp ), data[index+1], leafStart, leafStop );
 						++childNumber;
+						index += 2;
 				}
 		}
 
