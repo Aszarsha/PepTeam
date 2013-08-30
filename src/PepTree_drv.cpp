@@ -89,19 +89,20 @@ void PepTreeCreation( char * argv[] ) {
 		      );
 
 		try {
-				printf( "Linearizing tree structure...\n" );
+				auto nbNodes = trie.NumLeaves() + trie.NumNodes();
+				printf( "Linearizing tree structure (%zu node%s: %zu internal%s, %zu lea%s)...\n"
+				      , nbNodes, nbNodes > 1 ? "s" : ""
+				      , trie.NumNodes(), trie.NumNodes() > 1 ? "s" : ""
+				      , trie.NumLeaves(), trie.NumLeaves() > 1 ? "ves" : "f"
+				      );
 				startTimer = chrono::high_resolution_clock::now();
 
 				auto tree = trie.LinearizeTree();
 
 				finishTimer = chrono::high_resolution_clock::now();
 				auto elapsed2 = finishTimer - startTimer;
-				auto nbNodes = trie.NumLeaves() + trie.NumNodes();
-				printf( "   ...linearized in %ld seconds (%zu node%s: %zu internal%s, %zu lea%s).\n"
+				printf( "   ...linearized in %ld seconds .\n"
 				      , chrono::duration_cast< chrono::seconds >( elapsed2 ).count()
-				      , nbNodes, nbNodes > 1 ? "s" : ""
-				      , trie.NumNodes(), trie.NumNodes() > 1 ? "s" : ""
-				      , trie.NumLeaves(), trie.NumLeaves() > 1 ? "ves" : "f"
 				      );
 
 				ostringstream outputPepTreeFilenameStream;
