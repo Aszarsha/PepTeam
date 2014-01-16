@@ -12,13 +12,9 @@ PepTeam is a C++ program developped and intended to be used under a GNU/Linux sy
 
 ## Obtaining PepTeam
 
-The source code repository for the version **currently in deployment** inside the CBIB should be available at
+The source code repository for the version currently in deployment inside the CBIB is available at
 
 * https://github.com/cbib/pepteam
-
-The source code repository for the **current developmental** version is available at
-
-* https://github.com/Aszarsha/PepTeam
 
 ## Installing PepTeam
 
