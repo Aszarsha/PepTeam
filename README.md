@@ -86,11 +86,12 @@ Construct the profiles for each protein of the proteome database with valid mapp
 
 # Licence
 
-Copyright (c) 2013, Thomas Hume (1), Macha Nikolski (2), Hayssam Soueidan (3), Benjamin Dartigues (2)
+Copyright (c) 2013, Thomas Hume (1,2), Macha Nikolski (1,2), Hayssam Soueidan (2,3), Benjamin Dartigues (2)
 
-(1) LaBRI, Universite Bordeaux 1, 351 cours de la Liberation, 33405 Talence Cedex, France
-(2) CBIB, Universite Bordeaux 1, 351 cours de la Liberation, 33405 Talence Cedex, France
-(3) LaBRI, Universite Bordeaux 1, 351 cours de la Liberation, 33405 Talence Cedex, France
+(1) LaBRI, Université de Bordeaux, 351 cours de la Libération, 33405 Talence Cedex, France   
+(2) CBiB, Université de Bordeaux, 146, rue Léo Saignat 33076 Bordeaux   
+(3) INSERM U1035, Université de Bordeaux, 146 rue Léo Saignat, 33076 Bordeaux
+
 
 All rights reserved.
 
