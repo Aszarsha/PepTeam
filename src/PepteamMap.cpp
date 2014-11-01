@@ -13,12 +13,21 @@
 #include <climits>
 #include <boost/range/algorithm/for_each.hpp>
 
+#include "ProgramOptions.hpp"
+#include "File.hpp"
 #include "Matrices.hpp"
 #include "Fasta.hpp"
 #include "PepTree.hpp"
 
 using namespace std;
 using boost::range::for_each;
+
+#define UsageFunction( function )                                                                   \
+	do {                                                                                             \
+			function( "Usage: ", argv[0], " pepTree-query-file pepTree-subject-file cutoff-homology"   \
+			        , baseOption                                                                       \
+			        );                                                                                 \
+	} while ( false )
 
 static size_t fragSize;
 static double cutoffHomology;
@@ -172,11 +181,6 @@ void MapTrees( FILE * file, MMappedPepTree const & query, MMappedPepTree const &
 		MapTrees( file, query, 0, subject, 0, { 0.0, 0.0 }, 1 );
 }
 
-void UsageError( char * argv[] ) {
-		fprintf( stderr, "Usage: %s pepTree-query-file pepTree-subject-file cutoff-homology\n", argv[0] );
-		exit( 1 );
-}
-
 #if defined( PROFILE_PERF )
 void PrintExecutionStats( FILE * file ) {
 		fprintf( file, "Refuses:\n" );
@@ -204,26 +208,53 @@ void PrintExecutionStats( FILE * file ) {
 }
 #endif
 
-int main( int argc, char * argv[] ) {
-		if ( argc != 4 ) {
-				UsageError( argv );
+int main( int argc, char * argv[] ) try {
+		po::options_description baseOption( "Options", 999, 999 );
+		baseOption.add_options()
+			( "help,h"  , "Print this help message and exit" )
+			( "output,o", po::value< string >(), "Output file (default: input-query-file+\".mapping.\"+cutoff-homology)" )
+			;
+
+		po::options_description hiddenOptions( "Required options", 999, 999 );
+		hiddenOptions.add_options()
+			( "query-file"  , po::value< string >()->required(), "Input .pepTree query file" )
+			( "subject-file", po::value< string >()->required(), "Input .pepTree subject file" )
+			( "cutoff-homology", po::value< double >()->required(), "Target minimal homology threshold" )
+			;
+		po::positional_options_description posOptions;
+		posOptions.add( "query-file"  , 1 );
+		posOptions.add( "subject-file", 2 );
+		posOptions.add( "cutoff-homology", 3 );
+
+		po::options_description cmdLineOptions( "Command line options", 999, 999 );
+		cmdLineOptions.add( baseOption ).add( hiddenOptions );
+
+		po::variables_map vm;
+		try {
+				po::store( po::command_line_parser( argc, argv ).options( cmdLineOptions )
+				                                                .positional( posOptions )
+				                                                .run(), vm );
+				po::notify( vm );
+		} catch ( po::error & e ) {
+				cerr << "Invalid command line: " << e.what() << endl;
+				UsageFunction( UsageError );
+		}
+		if ( vm.count( "help" ) ) {
+				UsageFunction( Usage );
 		}
 
-		cutoffHomology = atof( argv[3] );
-
+		cutoffHomology = vm["cutoff-homology"].as< double >();
 		printf( "Similarity threshold: %f\n", cutoffHomology );
 
-		ostringstream outputFilenameStream;
-		outputFilenameStream << argv[1] << ".mapping."
-		                     << (int)cutoffHomology << '_' << (int)floor( 100*(cutoffHomology - (int)cutoffHomology) );
-		FILE * outputFile = fopen( outputFilenameStream.str().c_str(), "w" );
-		if ( !outputFile ) {
-				fprintf( stderr, "Unable to open output file \"%s\"\n", outputFilenameStream.str().c_str() );
-				UsageError( argv );   // exit here to avoid creation of the other files if input file is invalid
-		}
 
-		MMappedPepTree query( argv[1] );
-		MMappedPepTree subject( argv[2] );
+		string outFileName = vm.count( "output" ) ? vm["output"].as< string >()
+		                                          : vm["query-file"].as< string >() + ".mapping."
+		                                               + to_string( (int)cutoffHomology ) + "_"
+		                                               + to_string( (int)floor( 100*(cutoffHomology - (int)cutoffHomology) ) );
+		auto outFile = OpenFile( outFileName.c_str(), "wb" );
+
+		MMappedPepTree query( vm["query-file"].as< string >().c_str() );
+		MMappedPepTree subject( vm["subject-file"].as< string >().c_str() );
 
 		InitHomology();
 
@@ -231,8 +262,7 @@ int main( int argc, char * argv[] ) {
 				printf( "Intersecting peptides and proteins fragments sets...\n" );
 				auto startTimer = chrono::high_resolution_clock::now();
 
-				MapTrees( outputFile, query, subject );
-				fclose( outputFile );
+				MapTrees( outFile, query, subject );
 
 				auto finishTimer = chrono::high_resolution_clock::now();
 				auto elapsed2 = finishTimer - startTimer;
@@ -247,4 +277,10 @@ int main( int argc, char * argv[] ) {
 				return 1;
 		}
 		return 0;
+} catch ( std::exception & e ) {
+		fprintf( stderr, "Unhandled exception reached main: %s, application will now exit\n", e.what() );
+		return 271828;
+} catch ( ... ) {
+		fprintf( stderr, "Unhandled object reached main, application will now exit\n" );
+		return 314159;
 }
