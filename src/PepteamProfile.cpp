@@ -98,10 +98,10 @@ int main( int argc, char * argv[] ) try {
 				UsageFunction( Usage );
 		}
 
-		MMappedFastIdx queryFastIdx( vm["query-fastIdx"].as< char const * >() );
-		MMappedPepTree queryPepTree( vm["query-pepTree"].as< char const * >() );
-		MMappedFastIdx subjectFastIdx( vm["subject-fastIdx"].as< char const * >() );
-		MMappedPepTree subjectPepTree( vm["subject-pepTree"].as< char const * >() );
+		MMappedFastIdx queryFastIdx( vm["query-fastIdx"].as< string >().c_str() );
+		MMappedPepTree queryPepTree( vm["query-pepTree"].as< string >().c_str() );
+		MMappedFastIdx subjectFastIdx( vm["subject-fastIdx"].as< string >().c_str() );
+		MMappedPepTree subjectPepTree( vm["subject-pepTree"].as< string >().c_str() );
 
 		size_t szQuery, szSubject;
 		queryPepTree  .ForLeaf( 0, [&]( char const * s, uint32_t ) {   szQuery   = strlen( s );   } );
