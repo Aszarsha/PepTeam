@@ -1,9 +1,9 @@
 #Conditionally declare CC and CXX so they can be overwritten from command line
-CC=clang
-CXX=clang++
-CFLAGS=-Wall -march=native -Ofast
+CC=gcc
+CXX=g++
+CFLAGS=-I/module/apps/boost/1.56.0/include -Wall -march=native -Ofast
 CXXFLAGS=$(CFLAGS) -std=c++14
-LDFLAGS=-lboost_program_options
+LDFLAGS=-L/module/apps/boost/1.56.0/lib -lboost_program_options
 #CPPFILES := $(wildcard src/*.cpp)
 #OBJFILES := $(addprefix obj/,$(notdir $(CPP_FILES:.cpp=.o)))
 

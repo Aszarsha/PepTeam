@@ -131,7 +131,7 @@ int main( int argc, char * argv[] ) try {
 			;
 		po::positional_options_description posOptions;
 		posOptions.add( "input-file"    , 1 );
-		posOptions.add( "fragments-size", 2 );
+		posOptions.add( "fragments-size", 1 );
 
 		po::options_description cmdLineOptions( "Command line options", 999, 999 );
 		cmdLineOptions.add( baseOption ).add( requiredOptions ).add( hiddenRequiredOptions ).add( hiddenOptions );

@@ -11,13 +11,13 @@
 using namespace std;
 using boost::range::for_each;
 
-#define UsageFunction( function )                                          \
-	do {                                                                    \
-			function( "Usage: ", argv[0]                                      \
-			        , " mapping-file query-fastIdx-file query-pepTree-file"   \
-			          " subject-fastIdx-file subject-pepTree-file"            \
-			        , baseOption                                              \
-			        );                                                        \
+#define UsageFunction( function )                                            \
+	do {                                                                      \
+			function( "Usage: ", argv[0]                                        \
+			        , " mapping-file query-fastIdx-file query-pepTree-file"     \
+			          " subject-fastIdx-file subject-pepTree-file\n"            \
+			        , baseOption                                                \
+			        );                                                          \
 	} while ( false )
 
 typedef map< uint32_t, vector< unsigned int > > protProfile_map;
@@ -76,10 +76,10 @@ int main( int argc, char * argv[] ) try {
 			;
 		po::positional_options_description posOptions;
 		posOptions.add( "mapping-file"   , 1 );
-		posOptions.add( "query-fastIdx"  , 2 );
-		posOptions.add( "query-pepTree"  , 3 );
-		posOptions.add( "subject-fastIdx", 4 );
-		posOptions.add( "subject-pepTree", 5 );
+		posOptions.add( "query-fastIdx"  , 1 );
+		posOptions.add( "query-pepTree"  , 1 );
+		posOptions.add( "subject-fastIdx", 1 );
+		posOptions.add( "subject-pepTree", 1 );
 
 		po::options_description cmdLineOptions( "Command line options", 999, 999 );
 		cmdLineOptions.add( baseOption ).add( hiddenOptions );

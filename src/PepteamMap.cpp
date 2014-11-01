@@ -22,11 +22,11 @@
 using namespace std;
 using boost::range::for_each;
 
-#define UsageFunction( function )                                                                   \
-	do {                                                                                             \
-			function( "Usage: ", argv[0], " pepTree-query-file pepTree-subject-file cutoff-homology"   \
-			        , baseOption                                                                       \
-			        );                                                                                 \
+#define UsageFunction( function )                                                                     \
+	do {                                                                                               \
+			function( "Usage: ", argv[0], " pepTree-query-file pepTree-subject-file cutoff-homology\n"   \
+			        , baseOption                                                                         \
+			        );                                                                                   \
 	} while ( false )
 
 static size_t fragSize;
@@ -223,8 +223,8 @@ int main( int argc, char * argv[] ) try {
 			;
 		po::positional_options_description posOptions;
 		posOptions.add( "query-file"  , 1 );
-		posOptions.add( "subject-file", 2 );
-		posOptions.add( "cutoff-homology", 3 );
+		posOptions.add( "subject-file", 1 );
+		posOptions.add( "cutoff-homology", 1 );
 
 		po::options_description cmdLineOptions( "Command line options", 999, 999 );
 		cmdLineOptions.add( baseOption ).add( hiddenOptions );

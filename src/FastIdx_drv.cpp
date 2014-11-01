@@ -17,9 +17,9 @@
 namespace po = boost::program_options;
 using namespace std;
 
-#define UsageFunction( function )                                                                   \
-	do {                                                                                             \
-			function( "Usage: ", argv[0], " [options] -* input-file", requiredOptions, baseOption );   \
+#define UsageFunction( function )                                                                     \
+	do {                                                                                               \
+			function( "Usage: ", argv[0], " [options] -* input-file\n", requiredOptions, baseOption );   \
 	} while ( false )
 
 void IndexCreation( FILE * inFile, FILE * outFile ) {
