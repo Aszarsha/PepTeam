@@ -87,22 +87,22 @@ Construct the profiles for each protein of the proteome database with valid mapp
 ### PepteamScoring 
 
 Give a score for each protein depending on peptides mapped
-	input :  PepteamProfile output file
-	output : 2 files, one in tsv and one in csv showing protein with significant score
+input :  PepteamProfile output file
+output : 2 files, one in tsv and one in csv showing protein with significant score
 
 	Usage: bin/clt_test.py -i peptides.fastIdx.pepTree.k.mapping.h.profiles
 
 ###Pepteam annotation
 
+Annotate each protein using Ensembl biomart tools
 
-    	input : tsv file produced by the previous script clt_test.py. this file contains 3 columns, one for protein ID, one for p-value(>0.05) and finally the Z-score
-    	output : a csv annotatted file 
-    	here is a example of annotated file:
+input : tsv file produced by the previous script clt_test.py. this file contains 3 columns, one for protein ID, one for p-value(>0.05) and finally the Z-score
+output : a csv annotatted file 
+here is a example of annotated file:
 
-
-    	"Ensembl proteinId" ,"p-value"     ,"Zscore","Ensembl geneID"    ,EntrezgeneId","associated gene name","description", "wikigene description" 
-    	"ENSMUSP00000037233","6.797434e-09","5.6784","ENSMUSG00000039967","30046","Zfp292","zinc finger protein 292 [Source:MGI Symbol;Acc:MGI:1353423]","zinc finger protein 292" 
-    	"ENSMUSP00000095766","7.122627e-09","5.6704","ENSMUSG00000039967","30046","Zfp292","zinc finger protein 292 [Source:MGI Symbol;Acc:MGI:1353423]","zinc finger protein 292" 
+    "Ensembl proteinId" ,"p-value"     ,"Zscore","Ensembl geneID"    ,EntrezgeneId","associated gene name","description", "wikigene description" 
+    "ENSMUSP00000037233","6.797434e-09","5.6784","ENSMUSG00000039967","30046","Zfp292","zinc finger protein 292 [Source:MGI Symbol;Acc:MGI:1353423]","zinc finger protein 292" 
+    "ENSMUSP00000095766","7.122627e-09","5.6704","ENSMUSG00000039967","30046","Zfp292","zinc finger protein 292 [Source:MGI Symbol;Acc:MGI:1353423]","zinc finger protein 292" 
     
     Usage: pepteamAnnot.pl --input1=database_file --input2=significance.tsv --output=output
 
