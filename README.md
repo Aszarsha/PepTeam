@@ -87,7 +87,9 @@ Construct the profiles for each protein of the proteome database with valid mapp
 ### PepteamScoring 
 
 Give a score for each protein depending on peptides mapped
+
 input :  PepteamProfile output file
+
 output : 2 files, one in tsv and one in csv showing protein with significant score
 
 	Usage: bin/clt_test.py -i peptides.fastIdx.pepTree.k.mapping.h.profiles
@@ -97,7 +99,9 @@ output : 2 files, one in tsv and one in csv showing protein with significant sco
 Annotate each protein using Ensembl biomart tools
 
 input : tsv file produced by the previous script clt_test.py. this file contains 3 columns, one for protein ID, one for p-value(>0.05) and finally the Z-score
+
 output : a csv annotatted file 
+
 here is a example of annotated file:
 
     "Ensembl proteinId" ,"p-value"     ,"Zscore","Ensembl geneID"    ,EntrezgeneId","associated gene name","description", "wikigene description" 
