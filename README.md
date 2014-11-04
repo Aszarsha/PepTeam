@@ -1,5 +1,6 @@
 Pepteam
 =======
+PepTeam is a tool for biomarker discovery through the analysis of screened repertoires of phage displayed libraries that have been sequenced by NGS.  Peptide repertoires are mapped against the proteome of the target organism and functional analysis is performed assuming that small peptides mimic interactions of larger proteins.
 
 # Installation
 
