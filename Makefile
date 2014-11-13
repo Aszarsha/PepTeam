@@ -1,27 +1,27 @@
 #Conditionally declare CC and CXX so they can be overwritten from command line
-CC=gcc
-CXX=g++
-CFLAGS=-I/module/apps/boost/1.56.0/include -Wall -march=native -Ofast
-CXXFLAGS=$(CFLAGS) -std=c++14
-LDFLAGS=-L/module/apps/boost/1.56.0/lib -lboost_program_options
+CC?=gcc
+CXX?=g++
+CFLAGS=-Wall -march=native -Ofast
+CXXFLAGS=$(CFLAGS) -std=c++1y
+LDFLAGS=
 #CPPFILES := $(wildcard src/*.cpp)
 #OBJFILES := $(addprefix obj/,$(notdir $(CPP_FILES:.cpp=.o)))
 
 all: FastIdx PepTree PepteamMap PepteamProfile
 
-FastIdx: obj/FastIdx.o obj/FastIdx_drv.o | bindir
+FastIdx: bindir obj/FastIdx.o obj/FastIdx_drv.o
 	$(CXX) $(LDFLAGS) obj/FastIdx.o obj/FastIdx_drv.o -o bin/FastIdx
 
-PepTree: obj/FastIdx.o obj/PepTree.o obj/PepTree_drv.o | bindir
+PepTree: bindir obj/FastIdx.o obj/PepTree.o obj/PepTree_drv.o
 	$(CXX) $(LDFLAGS) obj/FastIdx.o obj/PepTree.o obj/PepTree_drv.o -o bin/PepTree
 
-PepteamMap: obj/FastIdx.o obj/PepTree.o obj/PepteamMap.o | bindir
+PepteamMap: bindir obj/FastIdx.o obj/PepTree.o obj/PepteamMap.o
 	$(CXX) $(LDFLAGS) obj/FastIdx.o obj/PepTree.o obj/PepteamMap.o -o bin/PepteamMap
 
-PepteamProfile: obj/FastIdx.o obj/PepTree.o obj/PepteamProfile.o | bindir
+PepteamProfile: bindir obj/FastIdx.o obj/PepTree.o obj/PepteamProfile.o
 	$(CXX) $(LDFLAGS) obj/FastIdx.o obj/PepTree.o obj/PepteamProfile.o -o bin/PepteamProfile
 
-obj/%.o: src/%.cpp | objdir
+obj/%.o: src/%.cpp objdir
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 objdir:

@@ -10,25 +10,34 @@
 #include <limits>
 #include <cstdint>
 
-#include "ProgramOptions.hpp"
-#include "File.hpp"
+#include "Matrices.hpp"
 #include "Fasta.hpp"
 #include "PepTree.hpp"
 #include "FastIdx.hpp"
 
 using namespace std;
 
-#define UsageFunction( function )                                                                          \
-	do {                                                                                                    \
-			function( "Usage: ", argv[0], " [options] -c fastIdx-file fragments-size\n"                       \
-			                "  -c [ --create ]       create the pepTree file from the input fastIdx file\n"   \
-			        , "or   : ", argv[0], " [options] -* pepTree-file\n"                                      \
-			        , requiredOptions, baseOption                                                             \
-			        );                                                                                        \
-	} while ( false )
+void UsageError( char * argv[] ) {
+		fprintf( stderr
+		       , "Usage: %s -c input-FastIdx-file fragments-size\n"
+		         "          create the PepTree file from the input FastIdx file\n"
+		         "   or: %s -%% pepTree-file\n"
+		         "   where %% is one of:\n"
+		         "     d -> print the tree depth\n"
+		         "     v -> print the tree vector in human 'interpretable' format\n"
+		         "     n -> print the tree nodes in human 'interpretable' format\n"
+		         "     l -> print the tree leaves in human 'interpretable' format\n"
+		         "     p -> print the tree leaf positions in human 'interpretable' format\n"
+		       , argv[ 0 ], argv[ 0 ]
+		       );
+		exit( 1 );
+}
 
-void PepTreeCreation( MMappedFastIdx const & idx, size_t fragSize, FILE * outFile ) {
-		printf( "Creating PepTree of depth %zu...\n", fragSize );
+void PepTreeCreation( char * argv[] ) {
+		auto fragSize = static_cast< size_t >( atoi( argv[ 3 ] ) );
+		MMappedFastIdx idx( argv[2] );
+
+		printf( "Creating PepTree of depth %zu from \"%s\"...\n", fragSize, argv[ 2 ] );
 		auto startTimer = chrono::high_resolution_clock::now();
 		auto indices   = idx.GetIndicesData();
 		auto names     = idx.GetNamesData();
@@ -96,98 +105,46 @@ void PepTreeCreation( MMappedFastIdx const & idx, size_t fragSize, FILE * outFil
 				      , chrono::duration_cast< chrono::seconds >( elapsed2 ).count()
 				      );
 
-				tree.Write( outFile );
+				ostringstream outputPepTreeFilenameStream;
+				outputPepTreeFilenameStream << argv[ 2 ] << ".pepTree." << fragSize;
+				auto outputPepTreeFile = fopen( outputPepTreeFilenameStream.str().c_str(), "wb" );
+				if ( !outputPepTreeFile ) {
+						fprintf( stderr, "Unable to open output file \"%s\"\n", outputPepTreeFilenameStream.str().c_str() );
+						exit( 1 );
+				}
+				tree.Write( outputPepTreeFile );
+				fclose( outputPepTreeFile );
 		} catch( std::exception & e ) {
 				fprintf( stderr, "%s\n", e.what() );
 				exit( 1 );
 		}
 }
 
-int main( int argc, char * argv[] ) try {
-		po::options_description baseOption( "Options", 999, 999 );
-		baseOption.add_options()
-			( "help,h"  , "Print this help message and exit" )
-			( "output,o", po::value< string >(), "Output file (default: -c -> input-file+\".pepTree.\"+fragments-size\n"
-			                                     "                    else -> stdout)" )
-			;
-
-		po::options_description requiredOptions( " where -* is one of", 999, 999 );
-		requiredOptions.add_options()
-		   ( "depth,d"  , "print the tree depth" )
-		   ( "vector,v" , "print the tree vector in human 'interpretable' format" )
-		   ( "nodes,n"  , "print the tree nodes in human 'interpretable' format" )
-		   ( "leaves,l" , "print the tree leaves in human 'interpretable' format" )
-		   ( "offsets,p", "print the tree leaf offsets in human 'interpretable' format" )
-			;
-		po::options_description hiddenRequiredOptions( " -c", 999, 999 );
-		hiddenRequiredOptions.add_options()
-			( "create,c", "create the pepTree file from the input fastIdx file" )
-			;
-
-		po::options_description hiddenOptions( "Required options", 999, 999 );
-		hiddenOptions.add_options()
-			( "input-file"    , po::value< string >()->required(), "Input .fasta file" )
-			( "fragments-size", po::value< size_t >(), "Peptide size in number of AA" )
-			;
-		po::positional_options_description posOptions;
-		posOptions.add( "input-file"    , 1 );
-		posOptions.add( "fragments-size", 1 );
-
-		po::options_description cmdLineOptions( "Command line options", 999, 999 );
-		cmdLineOptions.add( baseOption ).add( requiredOptions ).add( hiddenRequiredOptions ).add( hiddenOptions );
-
-		po::variables_map vm;
-		try {
-				po::store( po::command_line_parser( argc, argv ).options( cmdLineOptions )
-				                                                .positional( posOptions )
-				                                                .run(), vm );
-				po::notify( vm );
-		} catch ( po::error & e ) {
-				cerr << "Invalid command line: " << e.what() << endl;
-				UsageFunction( UsageError );
-		}
-		if ( vm.count( "help" ) ) {
-				UsageFunction( Usage );
-		}
-		if ( !DetectExclusiveOptions( vm, "create", "depth", "vector", "nodes", "leaves", "offsets" ) ) {
-				cerr << "Mutually exclusive options error" << endl;
-				UsageFunction( UsageError );
+int main( int argc, char * argv[] ) {
+		if ( argc < 3 || argc > 4 || argv[ 1 ][ 0 ] != '-' || strlen( argv[ 1 ] ) != 2 ) {
+				UsageError( argv );
 		}
 
-		if ( vm.count( "create" ) ) {
-				if ( !vm.count( "fragments-size" ) ) {
-						cerr << "Missing fragments-size" << endl;
-						UsageFunction( UsageError );
+		if ( argv[ 1 ][ 1 ] == 'c' ) {
+				if ( argc != 4 ) {
+						UsageError( argv );
 				}
-				MMappedFastIdx idx( vm["input-file"].as< string >().c_str() );
-				size_t fragSize = vm["fragments-size"].as< size_t >();
-				string outFileName = vm.count( "output" ) ? vm["output"].as< string >()
-				                                          : vm["input-file"].as< string >()+".pepTree."+to_string(fragSize);
-				auto outFile = OpenFile( outFileName.c_str(), "wb" );
-				PepTreeCreation( idx, fragSize , outFile );
+				PepTreeCreation( argv );
 		} else {
-				MMappedPepTree tree( vm["input-file"].as< string >().c_str() );
-				auto outFile = vm.count( "output" ) ? OpenFile( vm["output"].as< string >().c_str(), "wb" )
-				                                    : AutoFILE( stdout, []( auto ) {   return 0;   } );
-				
-				if ( vm.count( "depth" ) ) {
-   					fprintf( outFile, "Depth: %u\n", tree.Depth() );
-				} else if ( vm.count( "vector" ) ) {
-						tree.WriteReadableTree( outFile );
-				} else if ( vm.count( "nodes" ) ) {
-						tree.WriteReadableNodes( outFile );
-				} else if ( vm.count( "leaves" ) ) {
-						tree.WriteReadableLeaves( outFile );
-				} else { //if ( vm.count( "offsets" ) {
-						tree.WriteReadableLeafPos( outFile );
+				if ( argc != 3 ) {
+						UsageError( argv );
+				}
+				MMappedPepTree tree( argv[ 2 ] );
+
+				switch ( argv[ 1 ][ 1 ] ) {
+					case 'd': {   fprintf( stdout, "Depth: %u\n", tree.Depth() );   } break;
+					case 'v': {   tree.WriteReadableTree   ( stdout );              } break;
+					case 'n': {   tree.WriteReadableNodes  ( stdout );              } break;
+					case 'l': {   tree.WriteReadableLeaves ( stdout );              } break;
+					case 'p': {   tree.WriteReadableLeafPos( stdout );              } break;
+					default: UsageError( argv );
 				}
 		}
 
 		return 0;
-} catch ( std::exception & e ) {
-		fprintf( stderr, "Unhandled exception reached main: %s, application will now exit\n", e.what() );
-		return 271828;
-} catch ( ... ) {
-		fprintf( stderr, "Unhandled object reached main, application will now exit\n" );
-		return 314159;
 }
