@@ -115,7 +115,7 @@ here is a example of annotated file:
 
 # Licence
 
-Copyright (c) 2013,   Hayssam Soueidan (2,3), Thomas Hume (1,2), Benjamin Dartigues (2), and Macha Nikolski (1,2)
+Copyright (c) 2013, Thomas Hume (1,2), Hayssam Soueidan (2,3), Benjamin Dartigues (2), and Macha Nikolski (1,2)
 
 (1) LaBRI, Université de Bordeaux, 351 cours de la Libération, 33405 Talence Cedex, France   
 (2) CBiB, Université de Bordeaux, 146, rue Léo Saignat 33076 Bordeaux   
