@@ -54,12 +54,13 @@ void PepTreeCreation( char * argv[] ) {
 								++proteinIndex;
 								sequenceStart = i+1;
 						} else {
-								auto startStr = sequences + (i < fragSize ? 0 : i-fragSize+1);
+								auto startStr = sequences + (i - fragmentStart < fragSize ? fragmentStart : i-fragSize+1);
+								auto endStr   = startStr + 2*fragSize-1;
 								fprintf( stderr
 								       , "      warning: ignoring fragments "
 								         "in %s (centered at position %zu) "
 								         "in \"%s\" [%zu]: fragments contain "
-								       , string( startStr, startStr + 2*fragSize-1 ).c_str()
+								       , string( startStr, endStr ).c_str()
 								       , i - sequenceStart, names + indices[ proteinIndex*2 ], proteinIndex
 								       );
 								switch ( sequences[ i ] ) {
